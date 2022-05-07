@@ -1,0 +1,75 @@
+@media only screen and (max-width: 600px){
+
+	.navbar{
+
+		background: #FFE2B9;
+		height: 80px;
+		box-shadow: 2px 2px 15px 0px rgba(0, 0, 0, .42);
+		align-items: center;
+	}
+
+	.navbar .brand img{
+	    margin-bottom: 30px;
+	    width: 80px;
+	}
+
+	.navbar .menu{
+		display: flex;
+		flex-direction: column;
+		position: absolute;
+		top: 60px;
+		background:#FFE2B9;
+		height: 50vh;
+		left: -1em;
+		transform: translateY(-120%);
+		transition: all 1.4s;
+
+	}
+
+	.navbar .menu-toggle{
+		transform: translateY(0%);
+
+	}
+
+	.menu li{
+		margin-top: 3em;
+
+	}
+
+	.navbar .menu-bar{
+		display: block;
+		font-size: 2em;
+		color: #fff;
+		cursor: pointer;
+	    margin-bottom: 30px;
+	}
+
+	/*MAIN SECTION*/
+
+	.main{
+		display: flex;
+		flex-direction: column-reverse;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		text-align: center;
+		height: 70vh;
+	}
+
+	.main img{
+		margin-top: 50px;
+		width: 8em;
+		margin-left: 50px;
+	}
+
+	.main h1{
+		margin-top: -40px;
+		margin-right: 20px;
+	}
+
+	.main .button-content{
+		display: flex;
+		flex-direction: column;
+		margin: 30px;
+	}
+}
