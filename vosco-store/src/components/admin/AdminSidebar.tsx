@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Package, LogOut, ExternalLink,
-  Tag, Layers, Image, Building2, MessageSquare, Settings
+  Tag, Layers, Image, Building2, MessageSquare, Settings,
+  Users, ShoppingBag
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -16,6 +17,8 @@ const navItems = [
   { href: '/admin/banners', icon: Image, label: 'Banners' },
   { href: '/admin/empresas', icon: Building2, label: 'Empresas' },
   { href: '/admin/testimonios', icon: MessageSquare, label: 'Testimonios' },
+  { href: '/admin/clientes', icon: Users, label: 'Clientes' },
+  { href: '/admin/ventas', icon: ShoppingBag, label: 'Ventas' },
   { href: '/admin/configuracion', icon: Settings, label: 'Configuración' },
 ]
 

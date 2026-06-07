@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Pencil, Trash2, Zap, Wrench, X, Check, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, Zap, Wrench, X, Check, Upload, FileSpreadsheet } from 'lucide-react'
 import Image from 'next/image'
 import { Product, ProductLineName, Category } from '@/types'
 import { createClient } from '@/lib/supabase/client'
@@ -23,11 +23,20 @@ interface VehicleCompat {
   year_to?: number
 }
 
+interface BulkRow {
+  name: string
+  line: string
+  price: string
+  stock: string
+  description: string
+  category: string
+  error?: string
+}
+
 const emptyForm = {
   name: '',
   description: '',
   price: '',
-  price_bs: '',
   line: 'luces' as ProductLineName,
   category: '',
   category_id: '',
@@ -42,6 +51,40 @@ const emptyForm = {
   vehicle_compat: [] as VehicleCompat[],
 }
 
+function parseCSV(raw: string): BulkRow[] {
+  const lines = raw.trim().split('\n').filter(l => l.trim())
+  if (lines.length < 2) return []
+
+  const header = lines[0].split(',').map(h => h.trim().toLowerCase())
+  const nameIdx = header.indexOf('name')
+  const lineIdx = header.indexOf('line')
+  const priceIdx = header.indexOf('price')
+  const stockIdx = header.indexOf('stock')
+  const descIdx = header.indexOf('description')
+  const catIdx = header.indexOf('category')
+
+  return lines.slice(1).map(line => {
+    // simple CSV split (no quoted-comma support needed for basic use)
+    const cols = line.split(',').map(c => c.trim())
+    const row: BulkRow = {
+      name: nameIdx >= 0 ? cols[nameIdx] || '' : '',
+      line: lineIdx >= 0 ? cols[lineIdx] || '' : '',
+      price: priceIdx >= 0 ? cols[priceIdx] || '' : '',
+      stock: stockIdx >= 0 ? cols[stockIdx] || '' : '',
+      description: descIdx >= 0 ? cols[descIdx] || '' : '',
+      category: catIdx >= 0 ? cols[catIdx] || '' : '',
+    }
+
+    const missing: string[] = []
+    if (!row.name) missing.push('name')
+    if (!row.line) missing.push('line')
+    if (!row.price || isNaN(parseFloat(row.price))) missing.push('price')
+    if (missing.length) row.error = `Faltan campos requeridos: ${missing.join(', ')}`
+
+    return row
+  })
+}
+
 export default function ProductsManager({ initialProducts }: { initialProducts: Product[] }) {
   const [products, setProducts] = useState(initialProducts)
   const [showForm, setShowForm] = useState(false)
@@ -52,6 +95,15 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
   const [imageUrl, setImageUrl] = useState('')
   const [uploading, setUploading] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
+
+  // Bulk import state
+  const [showBulk, setShowBulk] = useState(false)
+  const [csvText, setCsvText] = useState('')
+  const [bulkRows, setBulkRows] = useState<BulkRow[]>([])
+  const [bulkImporting, setBulkImporting] = useState(false)
+  const [bulkRowErrors, setBulkRowErrors] = useState<Record<number, string>>({})
+  const [bulkDone, setBulkDone] = useState(false)
+
   const supabase = createClient()
 
   useEffect(() => {
@@ -72,7 +124,6 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
       name: p.name,
       description: p.description,
       price: String(p.price),
-      price_bs: String(p.price_bs || ''),
       line: p.line,
       category: p.category,
       category_id: p.category_id || '',
@@ -133,7 +184,6 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
       slug: slugify(form.name),
       description: form.description,
       price: parseFloat(form.price),
-      price_bs: form.price_bs ? parseFloat(form.price_bs) : null,
       line: form.line,
       category: form.category,
       category_id: form.category_id || null,
@@ -167,6 +217,64 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
     setDeleting(null)
   }
 
+  // Bulk import handlers
+  const openBulk = () => {
+    setCsvText('')
+    setBulkRows([])
+    setBulkRowErrors({})
+    setBulkDone(false)
+    setShowBulk(true)
+  }
+
+  const handleCsvChange = (value: string) => {
+    setCsvText(value)
+    setBulkRows(parseCSV(value))
+    setBulkRowErrors({})
+    setBulkDone(false)
+  }
+
+  const validRows = bulkRows.filter(r => !r.error)
+
+  const handleBulkImport = async () => {
+    if (validRows.length === 0) return
+    setBulkImporting(true)
+    const errors: Record<number, string> = {}
+    const inserted: Product[] = []
+
+    for (let i = 0; i < bulkRows.length; i++) {
+      const row = bulkRows[i]
+      if (row.error) continue
+
+      const payload = {
+        name: row.name,
+        slug: slugify(row.name),
+        description: row.description,
+        price: parseFloat(row.price),
+        line: row.line as ProductLineName,
+        category: row.category,
+        stock: parseInt(row.stock) || 0,
+        featured: false,
+        active: true,
+        images: [],
+        specs: {},
+      }
+
+      const { data, error } = await supabase.from('products').insert(payload).select().single()
+      if (error) {
+        errors[i] = error.message
+      } else if (data) {
+        inserted.push(data as Product)
+      }
+    }
+
+    setBulkRowErrors(errors)
+    if (inserted.length > 0) {
+      setProducts(ps => [...inserted, ...ps])
+    }
+    setBulkImporting(false)
+    setBulkDone(true)
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -174,12 +282,20 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
           <h1 className="font-display text-4xl text-white tracking-wider">PRODUCTOS</h1>
           <p className="text-[#6B7680] text-sm mt-1">{products.length} productos en total</p>
         </div>
-        <button
-          onClick={openNew}
-          className="flex items-center gap-2 bg-[#C9A84C] text-black px-5 py-3 rounded-lg text-sm font-bold tracking-wider uppercase hover:bg-[#F0D98A] transition-colors"
-        >
-          <Plus size={16} /> Nuevo producto
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={openBulk}
+            className="flex items-center gap-2 border border-[#C9A84C] text-[#C9A84C] px-5 py-3 rounded-lg text-sm font-bold tracking-wider uppercase hover:bg-[#C9A84C]/10 transition-colors"
+          >
+            <FileSpreadsheet size={16} /> Importar lote
+          </button>
+          <button
+            onClick={openNew}
+            className="flex items-center gap-2 bg-[#C9A84C] text-black px-5 py-3 rounded-lg text-sm font-bold tracking-wider uppercase hover:bg-[#F0D98A] transition-colors"
+          >
+            <Plus size={16} /> Nuevo producto
+          </button>
+        </div>
       </div>
 
       {/* Product grid */}
@@ -323,23 +439,6 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                       />
                     </div>
                     <div>
-                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Precio (Bs)</label>
-                      <input
-                        type="number" value={form.price_bs}
-                        onChange={e => setForm(f => ({ ...f, price_bs: e.target.value }))}
-                        className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Categoría (texto)</label>
-                      <input
-                        value={form.category}
-                        onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                        placeholder="Ej: Kits LED, Faros..."
-                        className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                    </div>
-                    <div>
                       <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Stock</label>
                       <input
                         type="number" value={form.stock}
@@ -350,14 +449,14 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                   </div>
 
                   {/* Category select */}
-                  {lineCategories.length > 0 && (
-                    <div>
-                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Categoría del sistema</label>
+                  <div>
+                    <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Categoría</label>
+                    {lineCategories.length > 0 ? (
                       <select
                         value={form.category_id}
                         onChange={e => {
                           const cat = categories.find(c => c.id === e.target.value)
-                          setForm(f => ({ ...f, category_id: e.target.value, category: cat ? cat.name : f.category }))
+                          setForm(f => ({ ...f, category_id: e.target.value, category: cat ? cat.name : '' }))
                         }}
                         className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
                       >
@@ -366,8 +465,10 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                           <option key={cat.id} value={cat.id}>{cat.name}</option>
                         ))}
                       </select>
-                    </div>
-                  )}
+                    ) : (
+                      <p className="text-[#6B7680] text-xs py-2">No hay categorías para esta línea. Crea una en el panel de Categorías.</p>
+                    )}
+                  </div>
 
                   <div>
                     <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Descripción</label>
@@ -501,6 +602,131 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                   >
                     <Check size={16} />
                     {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Crear producto'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Import Modal */}
+      <AnimatePresence>
+        {showBulk && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowBulk(false)}
+              className="fixed inset-0 bg-black/70 z-50"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="bg-[#111111] border border-[#1E1E1E] rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b border-[#1E1E1E]">
+                  <div className="flex items-center gap-3">
+                    <FileSpreadsheet size={20} className="text-[#C9A84C]" />
+                    <h2 className="font-display text-2xl text-white tracking-wider">IMPORTAR LOTE</h2>
+                  </div>
+                  <button onClick={() => setShowBulk(false)} className="text-[#6B7680] hover:text-white transition-colors">
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-5">
+                  {/* CSV format hint */}
+                  <div className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg p-4">
+                    <p className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2">Formato esperado (CSV con encabezado)</p>
+                    <code className="text-[#6B7680] text-xs font-mono">name,line,price,stock,description,category</code>
+                    <p className="text-[#6B7680] text-xs mt-2">Campos requeridos: <span className="text-white">name, line, price</span></p>
+                  </div>
+
+                  {/* CSV textarea */}
+                  <div>
+                    <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Datos CSV</label>
+                    <textarea
+                      rows={7}
+                      value={csvText}
+                      onChange={e => handleCsvChange(e.target.value)}
+                      placeholder={'name,line,price,stock,description,category\nFaro LED H4,luces,25.99,10,Faro de alta intensidad,Faros'}
+                      className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors resize-none font-mono"
+                    />
+                  </div>
+
+                  {/* Preview table */}
+                  {bulkRows.length > 0 && (
+                    <div>
+                      <p className="text-[#C9A84C] text-xs tracking-widest uppercase mb-3">
+                        Vista previa — {validRows.length} válidos / {bulkRows.length} total
+                      </p>
+                      <div className="overflow-x-auto rounded-lg border border-[#1E1E1E]">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-[#1E1E1E] bg-[#0A0A0A]">
+                              {['Nombre', 'Línea', 'Precio', 'Stock', 'Categoría', 'Estado'].map(h => (
+                                <th key={h} className="text-left text-[#C9A84C] tracking-widest uppercase px-3 py-2 font-medium">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {bulkRows.map((row, i) => {
+                              const importError = bulkRowErrors[i]
+                              const hasError = !!row.error || !!importError
+                              return (
+                                <tr key={i} className={`border-b border-[#1E1E1E] last:border-0 ${hasError ? 'bg-red-500/5' : ''}`}>
+                                  <td className="px-3 py-2 text-white">{row.name || <span className="text-red-400">—</span>}</td>
+                                  <td className="px-3 py-2 text-[#B0B8C1]">{row.line || <span className="text-red-400">—</span>}</td>
+                                  <td className="px-3 py-2 text-[#B0B8C1]">{row.price ? `$${row.price}` : <span className="text-red-400">—</span>}</td>
+                                  <td className="px-3 py-2 text-[#B0B8C1]">{row.stock || '0'}</td>
+                                  <td className="px-3 py-2 text-[#B0B8C1]">{row.category || '—'}</td>
+                                  <td className="px-3 py-2">
+                                    {importError ? (
+                                      <span className="text-red-400">{importError}</span>
+                                    ) : row.error ? (
+                                      <span className="text-red-400">{row.error}</span>
+                                    ) : bulkDone ? (
+                                      <span className="text-green-400 flex items-center gap-1"><Check size={10} /> Importado</span>
+                                    ) : (
+                                      <span className="text-[#6B7680]">OK</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {bulkDone && Object.keys(bulkRowErrors).length === 0 && (
+                    <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3 text-green-400 text-sm flex items-center gap-2">
+                      <Check size={14} /> Importación completada exitosamente.
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3 p-6 border-t border-[#1E1E1E]">
+                  <button
+                    onClick={() => setShowBulk(false)}
+                    className="flex-1 border border-[#1E1E1E] text-[#6B7680] py-3 rounded-lg text-sm font-bold tracking-wider uppercase hover:border-[#2E2E2E] hover:text-white transition-colors"
+                  >
+                    Cerrar
+                  </button>
+                  <button
+                    onClick={handleBulkImport}
+                    disabled={bulkImporting || validRows.length === 0}
+                    className="flex-1 flex items-center justify-center gap-2 bg-[#C9A84C] text-black py-3 rounded-lg text-sm font-bold tracking-wider uppercase hover:bg-[#F0D98A] transition-colors disabled:opacity-40"
+                  >
+                    <FileSpreadsheet size={16} />
+                    {bulkImporting ? 'Importando...' : `Importar ${validRows.length} producto${validRows.length !== 1 ? 's' : ''}`}
                   </button>
                 </div>
               </div>

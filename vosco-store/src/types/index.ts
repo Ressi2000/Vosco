@@ -83,3 +83,50 @@ export interface Setting {
   label?: string
   updated_at: string
 }
+
+export interface Customer {
+  id: string
+  name: string
+  phone?: string
+  email?: string
+  address?: string
+  notes?: string
+  created_at: string
+}
+
+export interface SaleItem {
+  product_id: string
+  product_name: string
+  quantity: number
+  price_usd: number
+}
+
+export type SaleStatus = 'pending' | 'completed' | 'cancelled'
+
+export interface Sale {
+  id: string
+  customer_id?: string
+  customer_name?: string
+  items: SaleItem[]
+  total_usd: number
+  total_bs: number
+  bcv_rate: number
+  status: SaleStatus
+  notes?: string
+  created_at: string
+  customer?: Customer
+}
+
+export type DeliveryStatus = 'pending' | 'delivered'
+
+export interface DeliveryNote {
+  id: string
+  sale_id: string
+  customer_id?: string
+  status: DeliveryStatus
+  notes?: string
+  created_at: string
+  delivered_at?: string
+  sale?: Sale
+  customer?: Customer
+}
