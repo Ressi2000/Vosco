@@ -7,11 +7,13 @@ import { motion } from 'framer-motion'
 import { ShoppingCart, Eye } from 'lucide-react'
 import { Product } from '@/types'
 import { useCart } from '@/store/cart'
+import { useCurrency } from '@/store/currency'
 
 export default function ProductCard({ product }: { product: Product }) {
   const [hovered, setHovered] = useState(false)
   const [added, setAdded] = useState(false)
   const { addItem } = useCart()
+  const format = useCurrency(s => s.format)
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -22,6 +24,7 @@ export default function ProductCard({ product }: { product: Product }) {
 
   const accent = product.line === 'luces' ? '#C9A84C' : '#B0B8C1'
   const img = product.images[0] || '/placeholder-product.jpg'
+  const isOnSale = product.on_sale && product.sale_price != null
 
   return (
     <motion.div
@@ -45,6 +48,16 @@ export default function ProductCard({ product }: { product: Product }) {
         >
           {product.line === 'luces' ? 'LUCES' : 'REPUESTOS'}
         </div>
+        {/* Sale badge */}
+        {isOnSale && (
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded"
+          >
+            OFERTA
+          </motion.div>
+        )}
         {/* Overlay on hover */}
         <motion.div
           animate={{ opacity: hovered ? 1 : 0 }}
@@ -63,11 +76,17 @@ export default function ProductCard({ product }: { product: Product }) {
 
         <div className="mt-auto flex items-center justify-between pt-3 border-t border-[#1E1E1E]">
           <div>
-            <p className="font-display text-xl tracking-wide" style={{ color: accent }}>
-              ${product.price.toFixed(2)}
-            </p>
-            {product.price_bs && (
-              <p className="text-[#6B7680] text-xs">Bs. {product.price_bs.toLocaleString()}</p>
+            {isOnSale ? (
+              <>
+                <p className="text-[#6B7680] text-xs line-through">{format(product.price)}</p>
+                <p className="font-display text-xl tracking-wide text-orange-400">
+                  {format(product.sale_price!)}
+                </p>
+              </>
+            ) : (
+              <p className="font-display text-xl tracking-wide" style={{ color: accent }}>
+                {format(product.price)}
+              </p>
             )}
           </div>
           <motion.button

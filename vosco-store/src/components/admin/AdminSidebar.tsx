@@ -2,12 +2,21 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, LogOut, ExternalLink } from 'lucide-react'
+import {
+  LayoutDashboard, Package, LogOut, ExternalLink,
+  Tag, Layers, Image, Building2, MessageSquare, Settings
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const navItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/admin/productos', icon: Package, label: 'Productos' },
+  { href: '/admin/categorias', icon: Tag, label: 'Categorías' },
+  { href: '/admin/lineas', icon: Layers, label: 'Líneas de Producto' },
+  { href: '/admin/banners', icon: Image, label: 'Banners' },
+  { href: '/admin/empresas', icon: Building2, label: 'Empresas' },
+  { href: '/admin/testimonios', icon: MessageSquare, label: 'Testimonios' },
+  { href: '/admin/configuracion', icon: Settings, label: 'Configuración' },
 ]
 
 export default function AdminSidebar() {
@@ -35,7 +44,7 @@ export default function AdminSidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map(item => {
           const Icon = item.icon
           const active = pathname === item.href

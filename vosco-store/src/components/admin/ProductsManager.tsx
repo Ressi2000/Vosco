@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Pencil, Trash2, Zap, Wrench, X, Check, Upload } from 'lucide-react'
 import Image from 'next/image'
-import { Product, ProductLine } from '@/types'
+import { Product, ProductLineName, Category } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 
 function slugify(text: string) {
@@ -16,17 +16,30 @@ function slugify(text: string) {
     .replace(/(^-|-$)/g, '')
 }
 
+interface VehicleCompat {
+  brand: string
+  model: string
+  year_from?: number
+  year_to?: number
+}
+
 const emptyForm = {
   name: '',
   description: '',
   price: '',
   price_bs: '',
-  line: 'luces' as ProductLine,
+  line: 'luces' as ProductLineName,
   category: '',
+  category_id: '',
   stock: '',
   featured: false,
+  active: true,
   images: [] as string[],
   specs: {} as Record<string, string>,
+  on_sale: false,
+  sale_price: '',
+  sale_ends_at: '',
+  vehicle_compat: [] as VehicleCompat[],
 }
 
 export default function ProductsManager({ initialProducts }: { initialProducts: Product[] }) {
@@ -38,7 +51,15 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
   const [deleting, setDeleting] = useState<string | null>(null)
   const [imageUrl, setImageUrl] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [categories, setCategories] = useState<Category[]>([])
   const supabase = createClient()
+
+  useEffect(() => {
+    supabase.from('categories').select('*').eq('active', true).order('sort_order')
+      .then(({ data }) => { if (data) setCategories(data as Category[]) })
+  }, [])
+
+  const lineCategories = categories.filter(c => c.line_slug === form.line)
 
   const openNew = () => {
     setForm(emptyForm)
@@ -54,10 +75,16 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
       price_bs: String(p.price_bs || ''),
       line: p.line,
       category: p.category,
+      category_id: p.category_id || '',
       stock: String(p.stock),
       featured: p.featured,
+      active: (p as any).active ?? true,
       images: p.images,
       specs: p.specs || {},
+      on_sale: p.on_sale || false,
+      sale_price: String(p.sale_price || ''),
+      sale_ends_at: p.sale_ends_at ? p.sale_ends_at.slice(0, 16) : '',
+      vehicle_compat: p.vehicle_compat || [],
     })
     setEditingId(p.id)
     setShowForm(true)
@@ -84,9 +111,24 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
     setUploading(false)
   }
 
+  const addVehicleCompat = () => {
+    setForm(f => ({ ...f, vehicle_compat: [...f.vehicle_compat, { brand: '', model: '' }] }))
+  }
+
+  const updateVehicleCompat = (i: number, field: keyof VehicleCompat, value: string | number) => {
+    setForm(f => ({
+      ...f,
+      vehicle_compat: f.vehicle_compat.map((vc, idx) => idx === i ? { ...vc, [field]: value } : vc)
+    }))
+  }
+
+  const removeVehicleCompat = (i: number) => {
+    setForm(f => ({ ...f, vehicle_compat: f.vehicle_compat.filter((_, idx) => idx !== i) }))
+  }
+
   const handleSave = async () => {
     setSaving(true)
-    const payload = {
+    const payload: Record<string, unknown> = {
       name: form.name,
       slug: slugify(form.name),
       description: form.description,
@@ -94,11 +136,16 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
       price_bs: form.price_bs ? parseFloat(form.price_bs) : null,
       line: form.line,
       category: form.category,
+      category_id: form.category_id || null,
       stock: parseInt(form.stock) || 0,
       featured: form.featured,
+      active: form.active,
       images: form.images,
       specs: form.specs,
-      active: true,
+      on_sale: form.on_sale,
+      sale_price: form.on_sale && form.sale_price ? parseFloat(form.sale_price) : null,
+      sale_ends_at: form.on_sale && form.sale_ends_at ? form.sale_ends_at : null,
+      vehicle_compat: form.line === 'repuestos' ? form.vehicle_compat : [],
     }
 
     if (editingId) {
@@ -166,11 +213,25 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                   {p.line === 'luces' ? <Zap size={10} className="inline mr-1" /> : <Wrench size={10} className="inline mr-1" />}
                   {p.line}
                 </div>
+                {p.on_sale && (
+                  <div className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded">
+                    OFERTA
+                  </div>
+                )}
               </div>
               <div className="p-4">
                 <p className="text-white font-semibold text-sm mb-1 line-clamp-1">{p.name}</p>
-                <p className="text-[#C9A84C] font-display text-lg">${p.price.toFixed(2)}</p>
-                <p className="text-[#6B7680] text-xs mt-1">Stock: {p.stock}</p>
+                <div className="flex items-center gap-2">
+                  {p.on_sale && p.sale_price ? (
+                    <>
+                      <p className="text-[#6B7680] text-xs line-through">${p.price.toFixed(2)}</p>
+                      <p className="text-orange-400 font-display text-lg">${p.sale_price.toFixed(2)}</p>
+                    </>
+                  ) : (
+                    <p className="text-[#C9A84C] font-display text-lg">${p.price.toFixed(2)}</p>
+                  )}
+                </div>
+                <p className="text-[#6B7680] text-xs mt-1">Stock: {p.stock} · {(p as any).active ? 'Activo' : 'Inactivo'}</p>
                 <div className="flex gap-2 mt-4">
                   <button
                     onClick={() => openEdit(p)}
@@ -225,10 +286,10 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                   <div>
                     <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Línea</label>
                     <div className="flex gap-3">
-                      {(['luces', 'repuestos'] as ProductLine[]).map(line => (
+                      {(['luces', 'repuestos'] as ProductLineName[]).map(line => (
                         <button
                           key={line}
-                          onClick={() => setForm(f => ({ ...f, line }))}
+                          onClick={() => setForm(f => ({ ...f, line, category_id: '' }))}
                           className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border text-sm font-bold tracking-wider uppercase transition-colors ${
                             form.line === line
                               ? line === 'luces'
@@ -256,9 +317,7 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                     <div>
                       <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Precio (USD)</label>
                       <input
-                        type="number"
-                        step="0.01"
-                        value={form.price}
+                        type="number" step="0.01" value={form.price}
                         onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
                         className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
                       />
@@ -266,37 +325,54 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                     <div>
                       <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Precio (Bs)</label>
                       <input
-                        type="number"
-                        value={form.price_bs}
+                        type="number" value={form.price_bs}
                         onChange={e => setForm(f => ({ ...f, price_bs: e.target.value }))}
                         className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
                       />
                     </div>
                     <div>
-                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Categoría</label>
+                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Categoría (texto)</label>
                       <input
                         value={form.category}
                         onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                        placeholder="Ej: Kits LED, Faros, Repuestos..."
+                        placeholder="Ej: Kits LED, Faros..."
                         className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
                       />
                     </div>
                     <div>
                       <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Stock</label>
                       <input
-                        type="number"
-                        value={form.stock}
+                        type="number" value={form.stock}
                         onChange={e => setForm(f => ({ ...f, stock: e.target.value }))}
                         className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
                       />
                     </div>
                   </div>
 
+                  {/* Category select */}
+                  {lineCategories.length > 0 && (
+                    <div>
+                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Categoría del sistema</label>
+                      <select
+                        value={form.category_id}
+                        onChange={e => {
+                          const cat = categories.find(c => c.id === e.target.value)
+                          setForm(f => ({ ...f, category_id: e.target.value, category: cat ? cat.name : f.category }))
+                        }}
+                        className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
+                      >
+                        <option value="">Sin categoría</option>
+                        {lineCategories.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <div>
                     <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Descripción</label>
                     <textarea
-                      rows={3}
-                      value={form.description}
+                      rows={3} value={form.description}
                       onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                       className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors resize-none"
                     />
@@ -312,10 +388,7 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                         placeholder="URL de imagen"
                         className="flex-1 bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-2 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
                       />
-                      <button
-                        onClick={addImageUrl}
-                        className="px-4 py-2 bg-[#C9A84C] text-black rounded-lg text-sm font-bold hover:bg-[#F0D98A] transition-colors"
-                      >
+                      <button onClick={addImageUrl} className="px-4 py-2 bg-[#C9A84C] text-black rounded-lg text-sm font-bold hover:bg-[#F0D98A] transition-colors">
                         <Plus size={16} />
                       </button>
                     </div>
@@ -341,15 +414,77 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                     )}
                   </div>
 
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <div
-                      onClick={() => setForm(f => ({ ...f, featured: !f.featured }))}
-                      className={`w-10 h-5 rounded-full transition-colors ${form.featured ? 'bg-[#C9A84C]' : 'bg-[#1E1E1E]'}`}
-                    >
-                      <div className={`w-4 h-4 bg-white rounded-full mt-0.5 mx-0.5 transition-transform ${form.featured ? 'translate-x-5' : ''}`} />
+                  {/* Toggles */}
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div onClick={() => setForm(f => ({ ...f, featured: !f.featured }))} className={`w-10 h-5 rounded-full transition-colors ${form.featured ? 'bg-[#C9A84C]' : 'bg-[#1E1E1E]'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full mt-0.5 mx-0.5 transition-transform ${form.featured ? 'translate-x-5' : ''}`} />
+                      </div>
+                      <span className="text-[#B0B8C1] text-sm">Producto destacado</span>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div onClick={() => setForm(f => ({ ...f, active: !f.active }))} className={`w-10 h-5 rounded-full transition-colors ${form.active ? 'bg-[#C9A84C]' : 'bg-[#1E1E1E]'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full mt-0.5 mx-0.5 transition-transform ${form.active ? 'translate-x-5' : ''}`} />
+                      </div>
+                      <span className="text-[#B0B8C1] text-sm">Activo</span>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div onClick={() => setForm(f => ({ ...f, on_sale: !f.on_sale }))} className={`w-10 h-5 rounded-full transition-colors ${form.on_sale ? 'bg-red-500' : 'bg-[#1E1E1E]'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full mt-0.5 mx-0.5 transition-transform ${form.on_sale ? 'translate-x-5' : ''}`} />
+                      </div>
+                      <span className="text-[#B0B8C1] text-sm">En oferta</span>
+                    </label>
+                  </div>
+
+                  {/* Sale fields */}
+                  {form.on_sale && (
+                    <div className="grid grid-cols-2 gap-4 bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                      <div>
+                        <label className="text-red-400 text-xs tracking-widest uppercase mb-2 block">Precio de oferta (USD)</label>
+                        <input
+                          type="number" step="0.01" value={form.sale_price}
+                          onChange={e => setForm(f => ({ ...f, sale_price: e.target.value }))}
+                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-red-400 outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-red-400 text-xs tracking-widest uppercase mb-2 block">Fecha fin oferta</label>
+                        <input
+                          type="datetime-local" value={form.sale_ends_at}
+                          onChange={e => setForm(f => ({ ...f, sale_ends_at: e.target.value }))}
+                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-red-400 outline-none transition-colors"
+                        />
+                      </div>
                     </div>
-                    <span className="text-[#B0B8C1] text-sm">Producto destacado</span>
-                  </label>
+                  )}
+
+                  {/* Vehicle compatibility (repuestos only) */}
+                  {form.line === 'repuestos' && (
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="text-[#C9A84C] text-xs tracking-widest uppercase">Compatibilidad vehicular</label>
+                        <button onClick={addVehicleCompat} className="flex items-center gap-1 text-xs text-[#C9A84C] hover:text-[#F0D98A] transition-colors">
+                          <Plus size={12} /> Agregar
+                        </button>
+                      </div>
+                      {form.vehicle_compat.map((vc, i) => (
+                        <div key={i} className="grid grid-cols-4 gap-2 mb-2">
+                          <input value={vc.brand} onChange={e => updateVehicleCompat(i, 'brand', e.target.value)} placeholder="Marca" className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
+                          <input value={vc.model} onChange={e => updateVehicleCompat(i, 'model', e.target.value)} placeholder="Modelo" className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
+                          <input type="number" value={vc.year_from || ''} onChange={e => updateVehicleCompat(i, 'year_from', parseInt(e.target.value) || 0)} placeholder="Desde" className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
+                          <div className="flex gap-1">
+                            <input type="number" value={vc.year_to || ''} onChange={e => updateVehicleCompat(i, 'year_to', parseInt(e.target.value) || 0)} placeholder="Hasta" className="flex-1 bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
+                            <button onClick={() => removeVehicleCompat(i)} className="text-red-400 hover:text-red-300 p-1">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {form.vehicle_compat.length === 0 && (
+                        <p className="text-[#6B7680] text-xs">No hay compatibilidades agregadas.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-3 p-6 border-t border-[#1E1E1E]">

@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ShoppingCart, Menu, X } from 'lucide-react'
 import { useCart } from '@/store/cart'
+import CurrencySwitcher from './CurrencySwitcher'
 
 const links = [
   { href: '/', label: 'Inicio' },
@@ -38,12 +40,15 @@ export default function Navbar() {
       >
         <div className="max-w-[1200px] mx-auto px-6 flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
-            <svg width="32" height="32" viewBox="0 0 100 100" className="group-hover:scale-110 transition-transform duration-200">
-              <polygon points="50,5 95,95 50,70 5,95" fill="white" />
-              <polygon points="50,30 75,80 50,65 25,80" fill="#0A0A0A" />
-            </svg>
-            <span className="font-display text-2xl tracking-widest text-white">VOSCO</span>
+          <Link href="/" className="flex items-center group">
+            <Image
+              src="/vosco.png"
+              alt="VOSCO"
+              width={80}
+              height={32}
+              className="mix-blend-screen object-contain"
+              style={{ height: 'auto' }}
+            />
           </Link>
 
           {/* Desktop links */}
@@ -61,12 +66,15 @@ export default function Navbar() {
 
           {/* Right actions */}
           <div className="flex items-center gap-3">
-            <Link
-              href="/#catalogo"
-              className="hidden md:block bg-[#C9A84C] text-black px-5 py-2 text-sm font-bold tracking-wider uppercase hover:bg-[#F0D98A] transition-colors duration-200 rounded"
-            >
-              Ver Catálogo
-            </Link>
+            <div className="hidden md:flex items-center gap-3">
+              <CurrencySwitcher />
+              <Link
+                href="/#catalogo"
+                className="bg-[#C9A84C] text-black px-5 py-2 text-sm font-bold tracking-wider uppercase hover:bg-[#F0D98A] transition-colors duration-200 rounded"
+              >
+                Ver Catálogo
+              </Link>
+            </div>
             <button
               onClick={openCart}
               className="relative p-2 text-white hover:text-[#C9A84C] transition-colors"
@@ -107,6 +115,9 @@ export default function Navbar() {
             transition={{ type: 'tween', duration: 0.3 }}
             className="fixed inset-0 z-40 bg-[#0A0A0A] flex flex-col pt-20 px-8 gap-6 md:hidden"
           >
+            <div className="mb-2">
+              <CurrencySwitcher />
+            </div>
             {links.map(l => (
               <Link
                 key={l.href}
