@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import { motion, useInView } from 'framer-motion'
 import { MessageCircle, Send, ExternalLink } from 'lucide-react'
 
-export default function ContactSection() {
+export default function ContactSection({ whatsapp = '584141234567' }: { whatsapp?: string }) {
   const ref = useRef(null)
   const inView = useInView(ref, { once: true, margin: '-80px' })
   const [form, setForm] = useState({ name: '', message: '' })
@@ -12,7 +12,7 @@ export default function ContactSection() {
 
   const handleWhatsApp = () => {
     const msg = `Hola VOSCO! Soy ${form.name}.\n\n${form.message}`
-    const url = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '584141234567'}?text=${encodeURIComponent(msg)}`
+    const url = `https://wa.me/${whatsapp}?text=${encodeURIComponent(msg)}`
     window.open(url, '_blank')
     setSent(true)
     setTimeout(() => setSent(false), 3000)
@@ -38,7 +38,7 @@ export default function ContactSection() {
             </p>
             <div className="flex flex-col gap-4">
               <a
-                href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '584141234567'}`}
+                href={`https://wa.me/${whatsapp}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-3 bg-[#25D366] text-white px-6 py-3 rounded-lg font-bold tracking-wider uppercase text-sm hover:bg-[#22bf5e] transition-colors w-fit"

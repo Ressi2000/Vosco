@@ -16,7 +16,7 @@ const links = [
   { href: '/#contacto', label: 'Contacto' },
 ]
 
-export default function Navbar() {
+export default function Navbar({ logoUrl, whatsapp: _whatsapp }: { logoUrl?: string; whatsapp?: string } = {}) {
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const { openCart, itemCount } = useCart()
@@ -42,7 +42,7 @@ export default function Navbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center group">
             <Image
-              src="/vosco.png"
+              src={logoUrl || '/vosco.png'}
               alt="VOSCO"
               width={80}
               height={32}

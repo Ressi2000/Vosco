@@ -90,3 +90,16 @@ CREATE POLICY "Public read banners" ON banners FOR SELECT USING (active = true);
 CREATE POLICY "Admin manage banners" ON banners FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "Public read companies" ON companies FOR SELECT USING (active = true);
 CREATE POLICY "Admin manage companies" ON companies FOR ALL USING (auth.role() = 'authenticated');
+
+-- =============================================
+-- MIGRATION v2: Settings adicionales (logo, slogans, redes)
+-- =============================================
+INSERT INTO settings (key, value, label) VALUES
+  ('hero_slogan',    'Ilumina tu camino y destaca tu estilo',         'Eslogan del Hero'),
+  ('footer_slogan',  'VOSCO — Fuerza en la ruta, estilo en la calle.','Eslogan del Footer'),
+  ('logo_url',       '',                                               'URL del logo (vacío = logo por defecto)'),
+  ('whatsapp_number','584141234567',                                   'Número de WhatsApp'),
+  ('instagram_url',  'https://instagram.com/vosco',                   'Instagram URL'),
+  ('tiktok_url',     '',                                               'TikTok URL'),
+  ('facebook_url',   '',                                               'Facebook URL')
+ON CONFLICT (key) DO NOTHING;
