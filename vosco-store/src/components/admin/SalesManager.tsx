@@ -29,6 +29,12 @@ interface Props {
   bcvRate: number
 }
 
+function stockFor(products: Product[], productId: string, saleItems: SaleItem[]) {
+  const p = products.find(p => p.id === productId)
+  const inCart = saleItems.find(i => i.product_id === productId)?.quantity ?? 0
+  return Math.max((p?.stock ?? 0) - inCart, 0)
+}
+
 export default function SalesManager({ initialSales, customers, products, bcvRate }: Props) {
   const supabase = createClient()
   const [sales, setSales] = useState(initialSales)
@@ -58,12 +64,13 @@ export default function SalesManager({ initialSales, customers, products, bcvRat
     ).slice(0, 6)
   }, [customers, customerQuery])
 
-  const productSuggestions = useMemo(() =>
-    productQuery.length > 0
-      ? products.filter(p => p.name.toLowerCase().includes(productQuery.toLowerCase()) && p.active !== false).slice(0, 6)
-      : [],
-    [products, productQuery]
-  )
+  const productSuggestions = useMemo(() => {
+    if (productQuery.length === 0) return []
+    const q = productQuery.toLowerCase()
+    return products
+      .filter(p => p.name.toLowerCase().includes(q) && p.active !== false && p.stock > 0)
+      .slice(0, 6)
+  }, [products, productQuery])
 
   const totalUsd = saleItems.reduce((sum, i) => sum + i.price_usd * i.quantity, 0)
   const totalBs = totalUsd * parseFloat(rate || '0')
@@ -72,16 +79,20 @@ export default function SalesManager({ initialSales, customers, products, bcvRat
     setSaleItems(items => {
       const existing = items.find(i => i.product_id === product.id)
       if (existing) {
-        return items.map(i => i.product_id === product.id ? { ...i, quantity: i.quantity + 1 } : i)
+        const newQty = existing.quantity + 1
+        if (newQty > product.stock) return items // no superar stock
+        return items.map(i => i.product_id === product.id ? { ...i, quantity: newQty } : i)
       }
+      if (product.stock < 1) return items
       return [...items, { product_id: product.id, product_name: product.name, quantity: 1, price_usd: product.sale_price ?? product.price }]
     })
     setProductQuery('')
   }
 
   const updateQty = (id: string, qty: number) => {
-    if (qty < 1) setSaleItems(items => items.filter(i => i.product_id !== id))
-    else setSaleItems(items => items.map(i => i.product_id === id ? { ...i, quantity: qty } : i))
+    if (qty < 1) { setSaleItems(items => items.filter(i => i.product_id !== id)); return }
+    const maxStock = products.find(p => p.id === id)?.stock ?? qty
+    setSaleItems(items => items.map(i => i.product_id === id ? { ...i, quantity: Math.min(qty, maxStock) } : i))
   }
 
   const resetForm = () => {
@@ -124,11 +135,15 @@ export default function SalesManager({ initialSales, customers, products, bcvRat
     const { data: sale } = await supabase.from('sales').insert(payload).select().single()
     if (sale) {
       await supabase.from('delivery_notes').insert({ sale_id: (sale as Sale).id, customer_id: customerId })
-      // Decrement stock for each item sold
+      // Decrement stock and deactivate products that reach 0
       await Promise.all(
-        saleItems.map(item =>
-          supabase.rpc('decrement_stock', { product_id: item.product_id, qty: item.quantity })
-        )
+        saleItems.map(async item => {
+          await supabase.rpc('decrement_stock', { product_id: item.product_id, qty: item.quantity })
+          const product = products.find(p => p.id === item.product_id)
+          if (product && product.stock - item.quantity <= 0) {
+            await supabase.from('products').update({ active: false }).eq('id', item.product_id)
+          }
+        })
       )
       setSales(ss => [sale as Sale, ...ss])
     }
@@ -413,9 +428,10 @@ export default function SalesManager({ initialSales, customers, products, bcvRat
                       {productSuggestions.length > 0 && (
                         <div className="absolute top-full left-0 right-0 bg-[#111111] border border-[#1E1E1E] rounded-lg mt-1 z-10 overflow-hidden">
                           {productSuggestions.map(p => (
-                            <button key={p.id} onClick={() => addItem(p)} className="w-full text-left px-4 py-3 text-sm text-white hover:bg-[#1E1E1E] transition-colors flex justify-between items-center">
-                              <span>{p.name}</span>
-                              <span className="text-[#C9A84C]">${(p.sale_price ?? p.price).toFixed(2)}</span>
+                            <button key={p.id} onClick={() => addItem(p)} className="w-full text-left px-4 py-3 text-sm text-white hover:bg-[#1E1E1E] transition-colors flex justify-between items-center gap-4">
+                              <span className="flex-1">{p.name}</span>
+                              <span className="text-[#6B7680] text-xs whitespace-nowrap">{p.stock} disp.</span>
+                              <span className="text-[#C9A84C] whitespace-nowrap">${(p.sale_price ?? p.price).toFixed(2)}</span>
                             </button>
                           ))}
                         </div>
@@ -424,21 +440,30 @@ export default function SalesManager({ initialSales, customers, products, bcvRat
 
                     {saleItems.length > 0 && (
                       <div className="bg-[#0A0A0A] rounded-lg border border-[#1E1E1E] overflow-hidden">
-                        {saleItems.map(item => (
+                        {saleItems.map(item => {
+                          const maxStock = products.find(p => p.id === item.product_id)?.stock ?? item.quantity
+                          const atMax = item.quantity >= maxStock
+                          return (
                           <div key={item.product_id} className="flex items-center justify-between px-4 py-3 border-b border-[#1E1E1E] last:border-0">
-                            <p className="text-white text-sm flex-1">{item.product_name}</p>
+                            <div className="flex-1 min-w-0 mr-3">
+                              <p className="text-white text-sm">{item.product_name}</p>
+                              <p className={`text-xs mt-0.5 ${atMax ? 'text-orange-400' : 'text-[#6B7680]'}`}>
+                                {maxStock} en stock{atMax ? ' — límite alcanzado' : ''}
+                              </p>
+                            </div>
                             <div className="flex items-center gap-3">
                               <p className="text-[#6B7680] text-sm">${item.price_usd.toFixed(2)}</p>
                               <div className="flex items-center gap-2">
                                 <button onClick={() => updateQty(item.product_id, item.quantity - 1)} className="w-6 h-6 rounded bg-[#1E1E1E] text-white flex items-center justify-center text-xs hover:bg-[#2E2E2E]">−</button>
                                 <span className="text-white text-sm w-6 text-center">{item.quantity}</span>
-                                <button onClick={() => updateQty(item.product_id, item.quantity + 1)} className="w-6 h-6 rounded bg-[#1E1E1E] text-white flex items-center justify-center text-xs hover:bg-[#2E2E2E]">+</button>
+                                <button onClick={() => updateQty(item.product_id, item.quantity + 1)} disabled={atMax} className="w-6 h-6 rounded bg-[#1E1E1E] text-white flex items-center justify-center text-xs hover:bg-[#2E2E2E] disabled:opacity-30 disabled:cursor-not-allowed">+</button>
                               </div>
                               <p className="text-[#C9A84C] text-sm font-bold w-16 text-right">${(item.price_usd * item.quantity).toFixed(2)}</p>
                               <button onClick={() => setSaleItems(items => items.filter(i => i.product_id !== item.product_id))} className="text-[#6B7680] hover:text-red-400 transition-colors"><X size={14} /></button>
                             </div>
                           </div>
-                        ))}
+                          )
+                        })}
                         <div className="px-4 py-3 bg-[#111111] flex justify-between items-center">
                           <div>
                             <label className="text-[#6B7680] text-xs uppercase tracking-wider">Tasa BCV</label>
