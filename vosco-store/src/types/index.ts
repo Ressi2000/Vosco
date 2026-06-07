@@ -12,6 +12,7 @@ export interface Product {
   images: string[]
   stock: number
   featured: boolean
+  active?: boolean
   specs?: Record<string, string>
   created_at: string
   on_sale?: boolean
