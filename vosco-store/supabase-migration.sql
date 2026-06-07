@@ -103,3 +103,20 @@ INSERT INTO settings (key, value, label) VALUES
   ('tiktok_url',     '',                                               'TikTok URL'),
   ('facebook_url',   '',                                               'Facebook URL')
 ON CONFLICT (key) DO NOTHING;
+
+-- =============================================
+-- MIGRATION v3: Settings del Hero completo
+-- =============================================
+INSERT INTO settings (key, value, label) VALUES
+  ('hero_badge',       'Venezuela · Iluminación Vehicular',  'Hero — Etiqueta superior'),
+  ('hero_cta1_label',  'Ver Luces',                          'Hero — Botón 1 texto'),
+  ('hero_cta1_href',   '/luces',                             'Hero — Botón 1 enlace'),
+  ('hero_cta2_label',  'Ver Repuestos',                      'Hero — Botón 2 texto'),
+  ('hero_cta2_href',   '/repuestos',                         'Hero — Botón 2 enlace'),
+  ('hero_stat1_value', '500+',                               'Hero — Stat 1 valor'),
+  ('hero_stat1_label', 'Clientes',                           'Hero — Stat 1 etiqueta'),
+  ('hero_stat2_value', '2',                                  'Hero — Stat 2 valor'),
+  ('hero_stat2_label', 'Líneas',                             'Hero — Stat 2 etiqueta'),
+  ('hero_stat3_value', '100%',                               'Hero — Stat 3 valor'),
+  ('hero_stat3_label', 'Confianza',                          'Hero — Stat 3 etiqueta')
+ON CONFLICT (key) DO NOTHING;

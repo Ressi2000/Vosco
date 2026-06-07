@@ -44,6 +44,17 @@ async function getData() {
       bcvRate: s('bcv_rate') ? parseFloat(s('bcv_rate')!) : 36.5,
       bcvDate: s('bcv_date') || '',
       heroSlogan: s('hero_slogan') || 'Ilumina tu camino y destaca tu estilo',
+      heroBadge: s('hero_badge') || 'Venezuela · Iluminación Vehicular',
+      heroCta1Label: s('hero_cta1_label') || 'Ver Luces',
+      heroCta1Href: s('hero_cta1_href') || '/luces',
+      heroCta2Label: s('hero_cta2_label') || 'Ver Repuestos',
+      heroCta2Href: s('hero_cta2_href') || '/repuestos',
+      heroStat1Value: s('hero_stat1_value') || '500+',
+      heroStat1Label: s('hero_stat1_label') || 'Clientes',
+      heroStat2Value: s('hero_stat2_value') || '2',
+      heroStat2Label: s('hero_stat2_label') || 'Líneas',
+      heroStat3Value: s('hero_stat3_value') || '100%',
+      heroStat3Label: s('hero_stat3_label') || 'Confianza',
       footerSlogan: s('footer_slogan') || 'VOSCO — Fuerza en la ruta, estilo en la calle.',
       logoUrl: s('logo_url') || undefined,
       whatsapp: s('whatsapp_number') || '584141234567',
@@ -59,12 +70,21 @@ async function getData() {
       bcvRate: 36.5, bcvDate: '', heroSlogan: 'Ilumina tu camino y destaca tu estilo',
       footerSlogan: 'VOSCO — Fuerza en la ruta, estilo en la calle.',
       logoUrl: undefined, whatsapp: '584141234567', socials: [],
+      heroBadge: 'Venezuela · Iluminación Vehicular',
+      heroCta1Label: 'Ver Luces', heroCta1Href: '/luces',
+      heroCta2Label: 'Ver Repuestos', heroCta2Href: '/repuestos',
+      heroStat1Value: '500+', heroStat1Label: 'Clientes',
+      heroStat2Value: '2', heroStat2Label: 'Líneas',
+      heroStat3Value: '100%', heroStat3Label: 'Confianza',
     }
   }
 }
 
 export default async function HomePage() {
-  const { products, banners, companies, testimonials, categories, bcvRate, bcvDate, heroSlogan, footerSlogan, logoUrl, whatsapp, socials } = await getData()
+  const { products, banners, companies, testimonials, categories, bcvRate, bcvDate,
+    heroSlogan, heroBadge, heroCta1Label, heroCta1Href, heroCta2Label, heroCta2Href,
+    heroStat1Value, heroStat1Label, heroStat2Value, heroStat2Label, heroStat3Value, heroStat3Label,
+    footerSlogan, logoUrl, whatsapp, socials } = await getData()
 
   const featured = products.filter(p => p.featured)
   const onSale = products.filter(p => p.on_sale && p.sale_price != null)
@@ -74,7 +94,14 @@ export default async function HomePage() {
       <CurrencyInit rate={bcvRate} date={bcvDate} />
       <Navbar logoUrl={logoUrl} whatsapp={whatsapp} />
       <main>
-        <Hero slogan={heroSlogan} logoUrl={logoUrl} />
+        <Hero
+          logoUrl={logoUrl} slogan={heroSlogan} badge={heroBadge}
+          cta1Label={heroCta1Label} cta1Href={heroCta1Href}
+          cta2Label={heroCta2Label} cta2Href={heroCta2Href}
+          stat1Value={heroStat1Value} stat1Label={heroStat1Label}
+          stat2Value={heroStat2Value} stat2Label={heroStat2Label}
+          stat3Value={heroStat3Value} stat3Label={heroStat3Label}
+        />
         <BannerSection banners={banners} />
         <ProductLines />
         {featured.length > 0 && <FeaturedProducts products={featured} />}
