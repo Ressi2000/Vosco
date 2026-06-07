@@ -84,9 +84,13 @@ export interface Setting {
   updated_at: string
 }
 
+export type IdType = 'V' | 'E' | 'J'
+
 export interface Customer {
   id: string
   name: string
+  id_type?: IdType
+  id_number?: string
   phone?: string
   email?: string
   address?: string

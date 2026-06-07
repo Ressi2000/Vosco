@@ -48,12 +48,15 @@ export default function SalesManager({ initialSales, customers, products, bcvRat
   const [rate, setRate] = useState(String(bcvRate))
   const [saving, setSaving] = useState(false)
 
-  const customerSuggestions = useMemo(() =>
-    customerQuery.length > 0
-      ? customers.filter(c => c.name.toLowerCase().includes(customerQuery.toLowerCase()) || (c.phone || '').includes(customerQuery)).slice(0, 6)
-      : [],
-    [customers, customerQuery]
-  )
+  const customerSuggestions = useMemo(() => {
+    if (customerQuery.length === 0) return []
+    const q = customerQuery.toLowerCase()
+    return customers.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      (c.phone || '').includes(customerQuery) ||
+      (c.id_number || '').includes(customerQuery)
+    ).slice(0, 6)
+  }, [customers, customerQuery])
 
   const productSuggestions = useMemo(() =>
     productQuery.length > 0
@@ -121,6 +124,12 @@ export default function SalesManager({ initialSales, customers, products, bcvRat
     const { data: sale } = await supabase.from('sales').insert(payload).select().single()
     if (sale) {
       await supabase.from('delivery_notes').insert({ sale_id: (sale as Sale).id, customer_id: customerId })
+      // Decrement stock for each item sold
+      await Promise.all(
+        saleItems.map(item =>
+          supabase.rpc('decrement_stock', { product_id: item.product_id, qty: item.quantity })
+        )
+      )
       setSales(ss => [sale as Sale, ...ss])
     }
     setSaving(false)
@@ -353,7 +362,11 @@ export default function SalesManager({ initialSales, customers, products, bcvRat
                           <div className="flex items-center justify-between bg-[#0A0A0A] border border-[#C9A84C]/40 rounded-lg px-4 py-3">
                             <div>
                               <p className="text-white text-sm font-medium">{selectedCustomer.name}</p>
-                              {selectedCustomer.phone && <p className="text-[#6B7680] text-xs">{selectedCustomer.phone}</p>}
+                              <p className="text-[#6B7680] text-xs">
+                                {selectedCustomer.id_number ? `${selectedCustomer.id_type}-${selectedCustomer.id_number}` : ''}
+                                {selectedCustomer.id_number && selectedCustomer.phone ? ' · ' : ''}
+                                {selectedCustomer.phone || ''}
+                              </p>
                             </div>
                             <button onClick={() => setSelectedCustomer(null)} className="text-[#6B7680] hover:text-white"><X size={14} /></button>
                           </div>
@@ -363,7 +376,7 @@ export default function SalesManager({ initialSales, customers, products, bcvRat
                             <input
                               value={customerQuery}
                               onChange={e => setCustomerQuery(e.target.value)}
-                              placeholder="Buscar cliente por nombre o teléfono..."
+                              placeholder="Buscar por nombre, cédula, RIF o teléfono..."
                               className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg pl-9 pr-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none"
                             />
                             {customerSuggestions.length > 0 && (
@@ -371,7 +384,11 @@ export default function SalesManager({ initialSales, customers, products, bcvRat
                                 {customerSuggestions.map(c => (
                                   <button key={c.id} onClick={() => { setSelectedCustomer(c); setCustomerQuery('') }} className="w-full text-left px-4 py-3 text-sm text-white hover:bg-[#1E1E1E] transition-colors">
                                     <p className="font-medium">{c.name}</p>
-                                    {c.phone && <p className="text-[#6B7680] text-xs">{c.phone}</p>}
+                                    <p className="text-[#6B7680] text-xs">
+                                      {c.id_number ? `${c.id_type}-${c.id_number}` : ''}
+                                      {c.id_number && c.phone ? ' · ' : ''}
+                                      {c.phone || ''}
+                                    </p>
                                   </button>
                                 ))}
                               </div>
