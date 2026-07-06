@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Pencil, Trash2, Zap, Wrench, X, Check, Upload, FileSpreadsheet } from 'lucide-react'
 import Image from 'next/image'
-import { Product, ProductLineName, Category } from '@/types'
+import { Product, ProductLineName, ProductOption } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 
 function slugify(text: string) {
@@ -38,8 +38,6 @@ const emptyForm = {
   description: '',
   price: '',
   line: 'luces' as ProductLineName,
-  category: '',
-  category_id: '',
   stock: '',
   featured: false,
   active: true,
@@ -49,6 +47,29 @@ const emptyForm = {
   sale_price: '',
   sale_ends_at: '',
   vehicle_compat: [] as VehicleCompat[],
+
+  // Campos comunes
+  codigo_vosco: '',
+  codigo_oem: '',
+  largo_cm: '',
+  ancho_cm: '',
+  alto_cm: '',
+  peso_kg: '',
+
+  // Solo repuestos
+  codigo_original_mitsubishi: '',
+  precio_fabrica: '',
+
+  // Solo luces
+  nombre_ingles: '',
+  tipo: '',
+  bases: '',
+}
+
+function computeCbm(largo: string, ancho: string, alto: string): number | null {
+  const l = parseFloat(largo), a = parseFloat(ancho), h = parseFloat(alto)
+  if (!l || !a || !h) return null
+  return (l * a * h) / 1_000_000
 }
 
 function parseCSV(raw: string): BulkRow[] {
@@ -94,7 +115,7 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
   const [deleting, setDeleting] = useState<string | null>(null)
   const [imageUrl, setImageUrl] = useState('')
   const [uploading, setUploading] = useState(false)
-  const [categories, setCategories] = useState<Category[]>([])
+  const [options, setOptions] = useState<ProductOption[]>([])
 
   // Bulk import state
   const [showBulk, setShowBulk] = useState(false)
@@ -107,11 +128,12 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.from('categories').select('*').eq('active', true).order('sort_order')
-      .then(({ data }) => { if (data) setCategories(data as Category[]) })
+    supabase.from('product_options').select('*').eq('active', true).order('sort_order')
+      .then(({ data }) => { if (data) setOptions(data as ProductOption[]) })
   }, [])
 
-  const lineCategories = categories.filter(c => c.line_slug === form.line)
+  const marcaOptions = options.filter(o => o.field === 'marca')
+  const tipoOptions = options.filter(o => o.field === 'tipo')
 
   const openNew = () => {
     setForm(emptyForm)
@@ -125,8 +147,6 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
       description: p.description,
       price: String(p.price),
       line: p.line,
-      category: p.category,
-      category_id: p.category_id || '',
       stock: String(p.stock),
       featured: p.featured,
       active: (p as any).active ?? true,
@@ -136,6 +156,17 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
       sale_price: String(p.sale_price || ''),
       sale_ends_at: p.sale_ends_at ? p.sale_ends_at.slice(0, 16) : '',
       vehicle_compat: p.vehicle_compat || [],
+      codigo_vosco: p.codigo_vosco || '',
+      codigo_oem: p.codigo_oem || '',
+      largo_cm: String(p.largo_cm ?? ''),
+      ancho_cm: String(p.ancho_cm ?? ''),
+      alto_cm: String(p.alto_cm ?? ''),
+      peso_kg: String(p.peso_kg ?? ''),
+      codigo_original_mitsubishi: p.codigo_original_mitsubishi || '',
+      precio_fabrica: String(p.precio_fabrica ?? ''),
+      nombre_ingles: p.nombre_ingles || '',
+      tipo: p.tipo || '',
+      bases: p.bases || '',
     })
     setEditingId(p.id)
     setShowForm(true)
@@ -185,8 +216,6 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
       description: form.description,
       price: parseFloat(form.price),
       line: form.line,
-      category: form.category,
-      category_id: form.category_id || null,
       stock: parseInt(form.stock) || 0,
       featured: form.featured,
       active: form.active,
@@ -196,6 +225,18 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
       sale_price: form.on_sale && form.sale_price ? parseFloat(form.sale_price) : null,
       sale_ends_at: form.on_sale && form.sale_ends_at ? form.sale_ends_at : null,
       vehicle_compat: form.line === 'repuestos' ? form.vehicle_compat : [],
+      codigo_vosco: form.codigo_vosco || null,
+      codigo_oem: form.codigo_oem || null,
+      largo_cm: form.largo_cm ? parseFloat(form.largo_cm) : null,
+      ancho_cm: form.ancho_cm ? parseFloat(form.ancho_cm) : null,
+      alto_cm: form.alto_cm ? parseFloat(form.alto_cm) : null,
+      peso_kg: form.peso_kg ? parseFloat(form.peso_kg) : null,
+      cbm: computeCbm(form.largo_cm, form.ancho_cm, form.alto_cm),
+      codigo_original_mitsubishi: form.line === 'repuestos' ? (form.codigo_original_mitsubishi || null) : null,
+      precio_fabrica: form.line === 'repuestos' && form.precio_fabrica ? parseFloat(form.precio_fabrica) : null,
+      nombre_ingles: form.line === 'luces' ? (form.nombre_ingles || null) : null,
+      tipo: form.line === 'luces' ? (form.tipo || null) : null,
+      bases: form.line === 'luces' ? (form.bases || null) : null,
     }
 
     if (editingId) {
@@ -405,7 +446,7 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                       {(['luces', 'repuestos'] as ProductLineName[]).map(line => (
                         <button
                           key={line}
-                          onClick={() => setForm(f => ({ ...f, line, category_id: '' }))}
+                          onClick={() => setForm(f => ({ ...f, line }))}
                           className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border text-sm font-bold tracking-wider uppercase transition-colors ${
                             form.line === line
                               ? line === 'luces'
@@ -448,26 +489,120 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                     </div>
                   </div>
 
-                  {/* Category select */}
-                  <div>
-                    <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Categoría</label>
-                    {lineCategories.length > 0 ? (
-                      <select
-                        value={form.category_id}
-                        onChange={e => {
-                          const cat = categories.find(c => c.id === e.target.value)
-                          setForm(f => ({ ...f, category_id: e.target.value, category: cat ? cat.name : '' }))
-                        }}
+                  {/* Códigos comunes */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Código Vosco</label>
+                      <input
+                        value={form.codigo_vosco}
+                        onChange={e => setForm(f => ({ ...f, codigo_vosco: e.target.value }))}
                         className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      >
-                        <option value="">Sin categoría</option>
-                        {lineCategories.map(cat => (
-                          <option key={cat.id} value={cat.id}>{cat.name}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-[#6B7680] text-xs py-2">No hay categorías para esta línea. Crea una en el panel de Categorías.</p>
-                    )}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Código OEM</label>
+                      <input
+                        value={form.codigo_oem}
+                        onChange={e => setForm(f => ({ ...f, codigo_oem: e.target.value }))}
+                        className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Línea-específico: repuestos */}
+                  {form.line === 'repuestos' && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Código original Mitsubishi</label>
+                        <input
+                          value={form.codigo_original_mitsubishi}
+                          onChange={e => setForm(f => ({ ...f, codigo_original_mitsubishi: e.target.value }))}
+                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Precio de fábrica (USD)</label>
+                        <input
+                          type="number" step="0.01" value={form.precio_fabrica}
+                          onChange={e => setForm(f => ({ ...f, precio_fabrica: e.target.value }))}
+                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Línea-específico: luces */}
+                  {form.line === 'luces' && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Nombre en inglés</label>
+                        <input
+                          value={form.nombre_ingles}
+                          onChange={e => setForm(f => ({ ...f, nombre_ingles: e.target.value }))}
+                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Tipo</label>
+                        {tipoOptions.length > 0 ? (
+                          <select
+                            value={form.tipo}
+                            onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
+                            className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
+                          >
+                            <option value="">Sin tipo</option>
+                            {tipoOptions.map(o => (
+                              <option key={o.id} value={o.value}>{o.value}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <p className="text-[#6B7680] text-xs py-2">No hay tipos creados. Agrega uno en Admin &gt; Marcas y Tipos.</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Bases</label>
+                        <input
+                          value={form.bases}
+                          onChange={e => setForm(f => ({ ...f, bases: e.target.value }))}
+                          placeholder="Ej. H4, H7, T10"
+                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Medidas, peso y CBM */}
+                  <div>
+                    <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Medidas y peso</label>
+                    <div className="grid grid-cols-4 gap-3">
+                      <input
+                        type="number" step="0.01" value={form.largo_cm}
+                        onChange={e => setForm(f => ({ ...f, largo_cm: e.target.value }))}
+                        placeholder="Largo (cm)"
+                        className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
+                      />
+                      <input
+                        type="number" step="0.01" value={form.ancho_cm}
+                        onChange={e => setForm(f => ({ ...f, ancho_cm: e.target.value }))}
+                        placeholder="Ancho (cm)"
+                        className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
+                      />
+                      <input
+                        type="number" step="0.01" value={form.alto_cm}
+                        onChange={e => setForm(f => ({ ...f, alto_cm: e.target.value }))}
+                        placeholder="Alto (cm)"
+                        className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
+                      />
+                      <input
+                        type="number" step="0.01" value={form.peso_kg}
+                        onChange={e => setForm(f => ({ ...f, peso_kg: e.target.value }))}
+                        placeholder="Peso (kg)"
+                        className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
+                      />
+                    </div>
+                    <p className="text-[#6B7680] text-xs mt-2">
+                      CBM calculado: <span className="text-white">{computeCbm(form.largo_cm, form.ancho_cm, form.alto_cm)?.toFixed(6) ?? '—'} m³</span>
+                    </p>
                   </div>
 
                   <div>
@@ -570,8 +705,11 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                       </div>
                       {form.vehicle_compat.map((vc, i) => (
                         <div key={i} className="grid grid-cols-4 gap-2 mb-2">
-                          <input value={vc.brand} onChange={e => updateVehicleCompat(i, 'brand', e.target.value)} placeholder="Marca" className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
-                          <input value={vc.model} onChange={e => updateVehicleCompat(i, 'model', e.target.value)} placeholder="Modelo" className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
+                          <select value={vc.brand} onChange={e => updateVehicleCompat(i, 'brand', e.target.value)} className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors">
+                            <option value="">Marca</option>
+                            {marcaOptions.map(o => <option key={o.id} value={o.value}>{o.value}</option>)}
+                          </select>
+                          <input value={vc.model} onChange={e => updateVehicleCompat(i, 'model', e.target.value)} placeholder="Modelo de aplicación" className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
                           <input type="number" value={vc.year_from || ''} onChange={e => updateVehicleCompat(i, 'year_from', parseInt(e.target.value) || 0)} placeholder="Desde" className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
                           <div className="flex gap-1">
                             <input type="number" value={vc.year_to || ''} onChange={e => updateVehicleCompat(i, 'year_to', parseInt(e.target.value) || 0)} placeholder="Hasta" className="flex-1 bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />

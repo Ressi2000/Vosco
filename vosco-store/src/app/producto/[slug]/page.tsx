@@ -19,6 +19,24 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   if (!data) notFound()
   const product = data as Product
   const accent = product.line === 'luces' ? '#C9A84C' : '#B0B8C1'
+  const subtitle = product.line === 'luces'
+    ? product.tipo || product.category
+    : product.vehicle_compat?.map(v => v.brand).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(', ') || product.category
+
+  const fichaTecnica: [string, string][] = []
+  if (product.codigo_vosco) fichaTecnica.push(['Código Vosco', product.codigo_vosco])
+  if (product.codigo_oem) fichaTecnica.push(['Código OEM', product.codigo_oem])
+  if (product.line === 'repuestos' && product.codigo_original_mitsubishi) fichaTecnica.push(['Código original Mitsubishi', product.codigo_original_mitsubishi])
+  if (product.line === 'luces' && product.nombre_ingles) fichaTecnica.push(['Nombre en inglés', product.nombre_ingles])
+  if (product.line === 'luces' && product.bases) fichaTecnica.push(['Bases', product.bases])
+  if (product.largo_cm && product.ancho_cm && product.alto_cm) {
+    fichaTecnica.push(['Medidas (L x A x A, cm)', `${product.largo_cm} x ${product.ancho_cm} x ${product.alto_cm}`])
+  }
+  if (product.peso_kg) fichaTecnica.push(['Peso', `${product.peso_kg} kg`])
+  if (product.cbm) fichaTecnica.push(['CBM', `${product.cbm.toFixed(6)} m³`])
+  if (product.line === 'repuestos' && product.vehicle_compat && product.vehicle_compat.length > 0) {
+    fichaTecnica.push(['Aplica a', product.vehicle_compat.map(v => `${v.brand} ${v.model}`.trim()).join(', ')])
+  }
 
   return (
     <>
@@ -41,7 +59,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             <div className="flex flex-col gap-6">
               <div>
                 <p className="text-xs tracking-[0.35em] uppercase mb-2" style={{ color: accent }}>
-                  {product.line === 'luces' ? 'LÍNEA 01 · LUCES' : 'LÍNEA 02 · REPUESTOS'} · {product.category}
+                  {product.line === 'luces' ? 'LÍNEA 01 · LUCES' : 'LÍNEA 02 · REPUESTOS'}{subtitle ? ` · ${subtitle}` : ''}
                 </p>
                 <h1 className="font-display text-4xl md:text-5xl text-white tracking-wide leading-tight mb-4">
                   {product.name}
@@ -66,6 +84,20 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 </p>
               ) : (
                 <p className="text-red-400 text-xs tracking-widest uppercase">✗ Agotado</p>
+              )}
+
+              {fichaTecnica.length > 0 && (
+                <div className="bg-[#111111] border border-[#1E1E1E] rounded-xl p-5">
+                  <p className="text-[#C9A84C] text-xs tracking-widest uppercase mb-3">Ficha técnica</p>
+                  <div className="space-y-2">
+                    {fichaTecnica.map(([k, v]) => (
+                      <div key={k} className="flex justify-between gap-4 text-sm">
+                        <span className="text-[#6B7680]">{k}</span>
+                        <span className="text-white text-right">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
 
               {product.specs && Object.keys(product.specs).length > 0 && (

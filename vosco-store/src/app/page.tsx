@@ -12,7 +12,7 @@ import AboutSection from '@/components/store/AboutSection'
 import Testimonials from '@/components/store/Testimonials'
 import ContactSection from '@/components/store/ContactSection'
 import Footer from '@/components/store/Footer'
-import { Product, Banner, Company, Testimonial, Category } from '@/types'
+import { Product, Banner, Company, Testimonial } from '@/types'
 
 async function getData() {
   try {
@@ -23,14 +23,12 @@ async function getData() {
       { data: companies },
       { data: settings },
       { data: testimonials },
-      { data: categories },
     ] = await Promise.all([
       supabase.from('products').select('*').eq('active', true).order('created_at', { ascending: false }),
       supabase.from('banners').select('*').eq('active', true).order('sort_order'),
       supabase.from('companies').select('*').eq('active', true).order('sort_order'),
       supabase.from('settings').select('*'),
       supabase.from('testimonials').select('*').eq('active', true).order('created_at', { ascending: false }),
-      supabase.from('categories').select('*').eq('active', true).order('sort_order'),
     ])
 
     const s = (key: string) => settings?.find((r: { key: string; value: string }) => r.key === key)?.value
@@ -40,7 +38,6 @@ async function getData() {
       banners: (banners as Banner[]) || [],
       companies: (companies as Company[]) || [],
       testimonials: (testimonials as Testimonial[]) || [],
-      categories: (categories as Category[]) || [],
       bcvRate: s('bcv_rate') ? parseFloat(s('bcv_rate')!) : 36.5,
       bcvDate: s('bcv_date') || '',
       heroSlogan: s('hero_slogan') || 'Ilumina tu camino y destaca tu estilo',
@@ -66,7 +63,7 @@ async function getData() {
     }
   } catch {
     return {
-      products: [], banners: [], companies: [], testimonials: [], categories: [],
+      products: [], banners: [], companies: [], testimonials: [],
       bcvRate: 36.5, bcvDate: '', heroSlogan: 'Ilumina tu camino y destaca tu estilo',
       footerSlogan: 'VOSCO — Fuerza en la ruta, estilo en la calle.',
       logoUrl: undefined, whatsapp: '584141234567', socials: [],
@@ -81,7 +78,7 @@ async function getData() {
 }
 
 export default async function HomePage() {
-  const { products, banners, companies, testimonials, categories, bcvRate, bcvDate,
+  const { products, banners, companies, testimonials, bcvRate, bcvDate,
     heroSlogan, heroBadge, heroCta1Label, heroCta1Href, heroCta2Label, heroCta2Href,
     heroStat1Value, heroStat1Label, heroStat2Value, heroStat2Label, heroStat3Value, heroStat3Label,
     footerSlogan, logoUrl, whatsapp, socials } = await getData()
@@ -106,7 +103,7 @@ export default async function HomePage() {
         <ProductLines />
         {featured.length > 0 && <FeaturedProducts products={featured} />}
         {onSale.length > 0 && <OffersSection products={onSale} />}
-        <Catalog products={products} categories={categories} />
+        <Catalog products={products} />
         {companies.length > 0 && <CompaniesSection companies={companies} />}
         <AboutSection />
         <Testimonials testimonials={testimonials} />

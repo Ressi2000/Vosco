@@ -20,6 +20,35 @@ export interface Product {
   sale_ends_at?: string
   category_id?: string
   vehicle_compat?: Array<{ brand: string; model: string; year_from?: number; year_to?: number }>
+
+  // Campos comunes (luces y repuestos)
+  codigo_vosco?: string
+  codigo_oem?: string
+  largo_cm?: number
+  ancho_cm?: number
+  alto_cm?: number
+  peso_kg?: number
+  cbm?: number
+
+  // Solo repuestos
+  codigo_original_mitsubishi?: string
+  precio_fabrica?: number
+
+  // Solo luces
+  nombre_ingles?: string
+  tipo?: string
+  bases?: string
+}
+
+export type ProductOptionField = 'marca' | 'tipo'
+
+export interface ProductOption {
+  id: string
+  line: ProductLineName
+  field: ProductOptionField
+  value: string
+  active: boolean
+  sort_order: number
 }
 
 export interface Testimonial {
