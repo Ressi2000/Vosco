@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Pencil, Trash2, Zap, Wrench, X, Check, Upload, FileSpreadsheet, ArrowUpDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, Zap, Wrench, X, Check, Upload, FileSpreadsheet } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Product, ProductLineName, ProductOption } from '@/types'
+import { Product, ProductLineName } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 
 function slugify(text: string) {
@@ -17,13 +17,6 @@ function slugify(text: string) {
     .replace(/(^-|-$)/g, '')
 }
 
-interface VehicleCompat {
-  brand: string
-  model: string
-  year_from?: number
-  year_to?: number
-}
-
 interface BulkRow {
   name: string
   line: string
@@ -32,45 +25,6 @@ interface BulkRow {
   description: string
   category: string
   error?: string
-}
-
-const emptyForm = {
-  name: '',
-  description: '',
-  price: '',
-  line: 'luces' as ProductLineName,
-  stock: '',
-  featured: false,
-  active: true,
-  images: [] as string[],
-  specs: {} as Record<string, string>,
-  on_sale: false,
-  sale_price: '',
-  sale_ends_at: '',
-  vehicle_compat: [] as VehicleCompat[],
-
-  // Campos comunes
-  codigo_vosco: '',
-  codigo_oem: '',
-  largo_cm: '',
-  ancho_cm: '',
-  alto_cm: '',
-  peso_kg: '',
-
-  // Solo repuestos
-  codigo_original_mitsubishi: '',
-  precio_fabrica: '',
-
-  // Solo luces
-  nombre_ingles: '',
-  tipo: '',
-  bases: '',
-}
-
-function computeCbm(largo: string, ancho: string, alto: string): number | null {
-  const l = parseFloat(largo), a = parseFloat(ancho), h = parseFloat(alto)
-  if (!l || !a || !h) return null
-  return (l * a * h) / 1_000_000
 }
 
 function parseCSV(raw: string): BulkRow[] {
@@ -109,14 +63,7 @@ function parseCSV(raw: string): BulkRow[] {
 
 export default function ProductsManager({ initialProducts }: { initialProducts: Product[] }) {
   const [products, setProducts] = useState(initialProducts)
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState(emptyForm)
-  const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [imageUrl, setImageUrl] = useState('')
-  const [uploading, setUploading] = useState(false)
-  const [options, setOptions] = useState<ProductOption[]>([])
 
   // Bulk import state
   const [showBulk, setShowBulk] = useState(false)
@@ -127,129 +74,6 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
   const [bulkDone, setBulkDone] = useState(false)
 
   const supabase = createClient()
-
-  useEffect(() => {
-    supabase.from('product_options').select('*').eq('active', true).order('sort_order')
-      .then(({ data }) => { if (data) setOptions(data as ProductOption[]) })
-  }, [])
-
-  const marcaOptions = options.filter(o => o.field === 'marca')
-  const tipoOptions = options.filter(o => o.field === 'tipo')
-
-  const openNew = () => {
-    setForm(emptyForm)
-    setEditingId(null)
-    setShowForm(true)
-  }
-
-  const openEdit = (p: Product) => {
-    setForm({
-      name: p.name,
-      description: p.description,
-      price: String(p.price),
-      line: p.line,
-      stock: String(p.stock),
-      featured: p.featured,
-      active: (p as any).active ?? true,
-      images: p.images,
-      specs: p.specs || {},
-      on_sale: p.on_sale || false,
-      sale_price: String(p.sale_price || ''),
-      sale_ends_at: p.sale_ends_at ? p.sale_ends_at.slice(0, 16) : '',
-      vehicle_compat: p.vehicle_compat || [],
-      codigo_vosco: p.codigo_vosco || '',
-      codigo_oem: p.codigo_oem || '',
-      largo_cm: String(p.largo_cm ?? ''),
-      ancho_cm: String(p.ancho_cm ?? ''),
-      alto_cm: String(p.alto_cm ?? ''),
-      peso_kg: String(p.peso_kg ?? ''),
-      codigo_original_mitsubishi: p.codigo_original_mitsubishi || '',
-      precio_fabrica: String(p.precio_fabrica ?? ''),
-      nombre_ingles: p.nombre_ingles || '',
-      tipo: p.tipo || '',
-      bases: p.bases || '',
-    })
-    setEditingId(p.id)
-    setShowForm(true)
-  }
-
-  const addImageUrl = () => {
-    if (imageUrl.trim()) {
-      setForm(f => ({ ...f, images: [...f.images, imageUrl.trim()] }))
-      setImageUrl('')
-    }
-  }
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `products/${Date.now()}.${ext}`
-    const { data, error } = await supabase.storage.from('product-images').upload(path, file)
-    if (data && !error) {
-      const { data: url } = supabase.storage.from('product-images').getPublicUrl(data.path)
-      setForm(f => ({ ...f, images: [...f.images, url.publicUrl] }))
-    }
-    setUploading(false)
-  }
-
-  const addVehicleCompat = () => {
-    setForm(f => ({ ...f, vehicle_compat: [...f.vehicle_compat, { brand: '', model: '' }] }))
-  }
-
-  const updateVehicleCompat = (i: number, field: keyof VehicleCompat, value: string | number) => {
-    setForm(f => ({
-      ...f,
-      vehicle_compat: f.vehicle_compat.map((vc, idx) => idx === i ? { ...vc, [field]: value } : vc)
-    }))
-  }
-
-  const removeVehicleCompat = (i: number) => {
-    setForm(f => ({ ...f, vehicle_compat: f.vehicle_compat.filter((_, idx) => idx !== i) }))
-  }
-
-  const handleSave = async () => {
-    setSaving(true)
-    const payload: Record<string, unknown> = {
-      name: form.name,
-      slug: slugify(form.name),
-      description: form.description,
-      price: parseFloat(form.price),
-      line: form.line,
-      stock: parseInt(form.stock) || 0,
-      featured: form.featured,
-      active: form.active,
-      images: form.images,
-      specs: form.specs,
-      on_sale: form.on_sale,
-      sale_price: form.on_sale && form.sale_price ? parseFloat(form.sale_price) : null,
-      sale_ends_at: form.on_sale && form.sale_ends_at ? form.sale_ends_at : null,
-      vehicle_compat: form.line === 'repuestos' ? form.vehicle_compat : [],
-      codigo_vosco: form.codigo_vosco || null,
-      codigo_oem: form.codigo_oem || null,
-      largo_cm: form.largo_cm ? parseFloat(form.largo_cm) : null,
-      ancho_cm: form.ancho_cm ? parseFloat(form.ancho_cm) : null,
-      alto_cm: form.alto_cm ? parseFloat(form.alto_cm) : null,
-      peso_kg: form.peso_kg ? parseFloat(form.peso_kg) : null,
-      cbm: computeCbm(form.largo_cm, form.ancho_cm, form.alto_cm),
-      codigo_original_mitsubishi: form.line === 'repuestos' ? (form.codigo_original_mitsubishi || null) : null,
-      precio_fabrica: form.line === 'repuestos' && form.precio_fabrica ? parseFloat(form.precio_fabrica) : null,
-      nombre_ingles: form.line === 'luces' ? (form.nombre_ingles || null) : null,
-      tipo: form.line === 'luces' ? (form.tipo || null) : null,
-      bases: form.line === 'luces' ? (form.bases || null) : null,
-    }
-
-    if (editingId) {
-      const { data } = await supabase.from('products').update(payload).eq('id', editingId).select().single()
-      if (data) setProducts(ps => ps.map(p => p.id === editingId ? data as Product : p))
-    } else {
-      const { data } = await supabase.from('products').insert(payload).select().single()
-      if (data) setProducts(ps => [data as Product, ...ps])
-    }
-    setSaving(false)
-    setShowForm(false)
-  }
 
   const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar este producto?')) return
@@ -331,12 +155,12 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
           >
             <FileSpreadsheet size={16} /> Importar lote
           </button>
-          <button
-            onClick={openNew}
+          <Link
+            href="/admin/productos/nuevo"
             className="flex items-center gap-2 bg-[#C9A84C] text-black px-5 py-3 rounded-lg text-sm font-bold tracking-wider uppercase hover:bg-[#F0D98A] transition-colors"
           >
             <Plus size={16} /> Nuevo producto
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -389,14 +213,14 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                     <p className="text-[#C9A84C] font-display text-lg">${p.price.toFixed(2)}</p>
                   )}
                 </div>
-                <p className="text-[#6B7680] text-xs mt-1">Stock: {p.stock} · {(p as any).active ? 'Activo' : 'Inactivo'}</p>
+                <p className="text-[#6B7680] text-xs mt-1">Stock: {p.stock} · {p.active ? 'Activo' : 'Inactivo'}</p>
                 <div className="flex gap-2 mt-4">
-                  <button
-                    onClick={() => openEdit(p)}
+                  <Link
+                    href={`/admin/productos/${p.id}`}
                     className="flex-1 flex items-center justify-center gap-1 border border-[#1E1E1E] text-[#B0B8C1] py-2 rounded-lg text-xs font-medium hover:border-[#B0B8C1] transition-colors"
                   >
                     <Pencil size={12} /> Editar
-                  </button>
+                  </Link>
                   <button
                     onClick={() => handleDelete(p.id)}
                     disabled={deleting === p.id}
@@ -410,358 +234,6 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
           ))}
         </AnimatePresence>
       </div>
-
-      {/* Form Modal */}
-      <AnimatePresence>
-        {showForm && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowForm(false)}
-              className="fixed inset-0 bg-black/70 z-50"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="bg-[#111111] border border-[#1E1E1E] rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between p-6 border-b border-[#1E1E1E]">
-                  <h2 className="font-display text-2xl text-white tracking-wider">
-                    {editingId ? 'EDITAR PRODUCTO' : 'NUEVO PRODUCTO'}
-                  </h2>
-                  <button onClick={() => setShowForm(false)} className="text-[#6B7680] hover:text-white transition-colors">
-                    <X size={20} />
-                  </button>
-                </div>
-
-                <div className="p-6 space-y-5">
-                  {/* Line selector */}
-                  <div>
-                    <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Línea</label>
-                    <div className="flex gap-3">
-                      {(['luces', 'repuestos'] as ProductLineName[]).map(line => (
-                        <button
-                          key={line}
-                          onClick={() => setForm(f => ({ ...f, line }))}
-                          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border text-sm font-bold tracking-wider uppercase transition-colors ${
-                            form.line === line
-                              ? line === 'luces'
-                                ? 'bg-[#C9A84C]/20 border-[#C9A84C] text-[#C9A84C]'
-                                : 'bg-[#B0B8C1]/20 border-[#B0B8C1] text-[#B0B8C1]'
-                              : 'border-[#1E1E1E] text-[#6B7680] hover:border-[#2E2E2E]'
-                          }`}
-                        >
-                          {line === 'luces' ? <Zap size={14} /> : <Wrench size={14} />}
-                          {line}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Nombre</label>
-                      <input
-                        value={form.name}
-                        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                        className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Precio (USD)</label>
-                      <input
-                        type="number" step="0.01" value={form.price}
-                        onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
-                        className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">
-                        {editingId ? 'Stock' : 'Stock inicial'}
-                      </label>
-                      {editingId ? (
-                        <div className="flex items-center justify-between bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3">
-                          <span className="text-white text-sm">{form.stock}</span>
-                          <Link
-                            href={`/admin/stock?product=${editingId}`}
-                            className="flex items-center gap-1 text-[#C9A84C] text-xs font-bold uppercase tracking-wider hover:text-[#F0D98A] transition-colors"
-                          >
-                            <ArrowUpDown size={12} /> Ajustar
-                          </Link>
-                        </div>
-                      ) : (
-                        <input
-                          type="number" value={form.stock}
-                          onChange={e => setForm(f => ({ ...f, stock: e.target.value }))}
-                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                        />
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Códigos comunes */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Código Vosco</label>
-                      <input
-                        value={form.codigo_vosco}
-                        onChange={e => setForm(f => ({ ...f, codigo_vosco: e.target.value }))}
-                        className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Código OEM</label>
-                      <input
-                        value={form.codigo_oem}
-                        onChange={e => setForm(f => ({ ...f, codigo_oem: e.target.value }))}
-                        className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Línea-específico: repuestos */}
-                  {form.line === 'repuestos' && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Código original Mitsubishi</label>
-                        <input
-                          value={form.codigo_original_mitsubishi}
-                          onChange={e => setForm(f => ({ ...f, codigo_original_mitsubishi: e.target.value }))}
-                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Precio de fábrica (USD)</label>
-                        <input
-                          type="number" step="0.01" value={form.precio_fabrica}
-                          onChange={e => setForm(f => ({ ...f, precio_fabrica: e.target.value }))}
-                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Línea-específico: luces */}
-                  {form.line === 'luces' && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="col-span-2">
-                        <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Nombre en inglés</label>
-                        <input
-                          value={form.nombre_ingles}
-                          onChange={e => setForm(f => ({ ...f, nombre_ingles: e.target.value }))}
-                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Tipo</label>
-                        {tipoOptions.length > 0 ? (
-                          <select
-                            value={form.tipo}
-                            onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
-                            className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                          >
-                            <option value="">Sin tipo</option>
-                            {tipoOptions.map(o => (
-                              <option key={o.id} value={o.value}>{o.value}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <p className="text-[#6B7680] text-xs py-2">No hay tipos creados. Agrega uno en Admin &gt; Marcas y Tipos.</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Bases</label>
-                        <input
-                          value={form.bases}
-                          onChange={e => setForm(f => ({ ...f, bases: e.target.value }))}
-                          placeholder="Ej. H4, H7, T10"
-                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Medidas, peso y CBM */}
-                  <div>
-                    <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Medidas y peso</label>
-                    <div className="grid grid-cols-4 gap-3">
-                      <input
-                        type="number" step="0.01" value={form.largo_cm}
-                        onChange={e => setForm(f => ({ ...f, largo_cm: e.target.value }))}
-                        placeholder="Largo (cm)"
-                        className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                      <input
-                        type="number" step="0.01" value={form.ancho_cm}
-                        onChange={e => setForm(f => ({ ...f, ancho_cm: e.target.value }))}
-                        placeholder="Ancho (cm)"
-                        className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                      <input
-                        type="number" step="0.01" value={form.alto_cm}
-                        onChange={e => setForm(f => ({ ...f, alto_cm: e.target.value }))}
-                        placeholder="Alto (cm)"
-                        className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                      <input
-                        type="number" step="0.01" value={form.peso_kg}
-                        onChange={e => setForm(f => ({ ...f, peso_kg: e.target.value }))}
-                        placeholder="Peso (kg)"
-                        className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                    </div>
-                    <p className="text-[#6B7680] text-xs mt-2">
-                      CBM calculado: <span className="text-white">{computeCbm(form.largo_cm, form.ancho_cm, form.alto_cm)?.toFixed(6) ?? '—'} m³</span>
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Descripción</label>
-                    <textarea
-                      rows={3} value={form.description}
-                      onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                      className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors resize-none"
-                    />
-                  </div>
-
-                  {/* Images */}
-                  <div>
-                    <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Imágenes</label>
-                    <div className="flex gap-2 mb-3">
-                      <input
-                        value={imageUrl}
-                        onChange={e => setImageUrl(e.target.value)}
-                        placeholder="URL de imagen"
-                        className="flex-1 bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-2 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                      <button onClick={addImageUrl} className="px-4 py-2 bg-[#C9A84C] text-black rounded-lg text-sm font-bold hover:bg-[#F0D98A] transition-colors">
-                        <Plus size={16} />
-                      </button>
-                    </div>
-                    <label className="flex items-center gap-2 cursor-pointer text-[#6B7680] hover:text-white text-sm transition-colors">
-                      <Upload size={14} />
-                      {uploading ? 'Subiendo...' : 'Subir desde dispositivo'}
-                      <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-                    </label>
-                    {form.images.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {form.images.map((img, i) => (
-                          <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden bg-[#0A0A0A] border border-[#1E1E1E]">
-                            <Image src={img} alt="" fill className="object-cover" />
-                            <button
-                              onClick={() => setForm(f => ({ ...f, images: f.images.filter((_, j) => j !== i) }))}
-                              className="absolute top-0.5 right-0.5 bg-red-500 rounded-full w-4 h-4 flex items-center justify-center"
-                            >
-                              <X size={10} className="text-white" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Toggles */}
-                  <div className="space-y-3">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div onClick={() => setForm(f => ({ ...f, featured: !f.featured }))} className={`w-10 h-5 rounded-full transition-colors ${form.featured ? 'bg-[#C9A84C]' : 'bg-[#1E1E1E]'}`}>
-                        <div className={`w-4 h-4 bg-white rounded-full mt-0.5 mx-0.5 transition-transform ${form.featured ? 'translate-x-5' : ''}`} />
-                      </div>
-                      <span className="text-[#B0B8C1] text-sm">Producto destacado</span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div onClick={() => setForm(f => ({ ...f, active: !f.active }))} className={`w-10 h-5 rounded-full transition-colors ${form.active ? 'bg-[#C9A84C]' : 'bg-[#1E1E1E]'}`}>
-                        <div className={`w-4 h-4 bg-white rounded-full mt-0.5 mx-0.5 transition-transform ${form.active ? 'translate-x-5' : ''}`} />
-                      </div>
-                      <span className="text-[#B0B8C1] text-sm">Activo</span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div onClick={() => setForm(f => ({ ...f, on_sale: !f.on_sale }))} className={`w-10 h-5 rounded-full transition-colors ${form.on_sale ? 'bg-red-500' : 'bg-[#1E1E1E]'}`}>
-                        <div className={`w-4 h-4 bg-white rounded-full mt-0.5 mx-0.5 transition-transform ${form.on_sale ? 'translate-x-5' : ''}`} />
-                      </div>
-                      <span className="text-[#B0B8C1] text-sm">En oferta</span>
-                    </label>
-                  </div>
-
-                  {/* Sale fields */}
-                  {form.on_sale && (
-                    <div className="grid grid-cols-2 gap-4 bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-                      <div>
-                        <label className="text-red-400 text-xs tracking-widest uppercase mb-2 block">Precio de oferta (USD)</label>
-                        <input
-                          type="number" step="0.01" value={form.sale_price}
-                          onChange={e => setForm(f => ({ ...f, sale_price: e.target.value }))}
-                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-red-400 outline-none transition-colors"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-red-400 text-xs tracking-widest uppercase mb-2 block">Fecha fin oferta</label>
-                        <input
-                          type="datetime-local" value={form.sale_ends_at}
-                          onChange={e => setForm(f => ({ ...f, sale_ends_at: e.target.value }))}
-                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-red-400 outline-none transition-colors"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Vehicle compatibility (repuestos only) */}
-                  {form.line === 'repuestos' && (
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <label className="text-[#C9A84C] text-xs tracking-widest uppercase">Compatibilidad vehicular</label>
-                        <button onClick={addVehicleCompat} className="flex items-center gap-1 text-xs text-[#C9A84C] hover:text-[#F0D98A] transition-colors">
-                          <Plus size={12} /> Agregar
-                        </button>
-                      </div>
-                      {form.vehicle_compat.map((vc, i) => (
-                        <div key={i} className="grid grid-cols-4 gap-2 mb-2">
-                          <select value={vc.brand} onChange={e => updateVehicleCompat(i, 'brand', e.target.value)} className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors">
-                            <option value="">Marca</option>
-                            {marcaOptions.map(o => <option key={o.id} value={o.value}>{o.value}</option>)}
-                          </select>
-                          <input value={vc.model} onChange={e => updateVehicleCompat(i, 'model', e.target.value)} placeholder="Modelo de aplicación" className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
-                          <input type="number" value={vc.year_from || ''} onChange={e => updateVehicleCompat(i, 'year_from', parseInt(e.target.value) || 0)} placeholder="Desde" className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
-                          <div className="flex gap-1">
-                            <input type="number" value={vc.year_to || ''} onChange={e => updateVehicleCompat(i, 'year_to', parseInt(e.target.value) || 0)} placeholder="Hasta" className="flex-1 bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
-                            <button onClick={() => removeVehicleCompat(i)} className="text-red-400 hover:text-red-300 p-1">
-                              <X size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      {form.vehicle_compat.length === 0 && (
-                        <p className="text-[#6B7680] text-xs">No hay compatibilidades agregadas.</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-3 p-6 border-t border-[#1E1E1E]">
-                  <button
-                    onClick={() => setShowForm(false)}
-                    className="flex-1 border border-[#1E1E1E] text-[#6B7680] py-3 rounded-lg text-sm font-bold tracking-wider uppercase hover:border-[#2E2E2E] hover:text-white transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving || !form.name || !form.price}
-                    className="flex-1 flex items-center justify-center gap-2 bg-[#C9A84C] text-black py-3 rounded-lg text-sm font-bold tracking-wider uppercase hover:bg-[#F0D98A] transition-colors disabled:opacity-40"
-                  >
-                    <Check size={16} />
-                    {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Crear producto'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
       {/* Bulk Import Modal */}
       <AnimatePresence>
