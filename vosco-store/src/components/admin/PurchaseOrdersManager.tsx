@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X, Check, Search, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
-import { Supplier, Product, PurchaseOrder, PurchaseOrderItem, PurchaseOrderPayment, PurchaseOrderStatus } from '@/types'
+import { Plus, X, Check, Search, ChevronDown, ChevronUp, Trash2, Ship } from 'lucide-react'
+import { Supplier, Product, PurchaseOrder, PurchaseOrderItem, PurchaseOrderPayment, PurchaseOrderStatus, Shipment } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 
 const STATUS_LABELS: Record<PurchaseOrderStatus, string> = {
@@ -24,14 +24,28 @@ const STATUS_COLORS: Record<PurchaseOrderStatus, string> = {
 
 const ALL_STATUSES = Object.keys(STATUS_LABELS) as PurchaseOrderStatus[]
 
+const SHIPMENT_STATUS_LABELS: Record<string, string> = {
+  en_almacen_china: 'En almacén China',
+  embarcado: 'Embarcado',
+  en_transito: 'En tránsito',
+  en_aduana: 'En aduana',
+  recibido: 'Recibido',
+  cancelado: 'Cancelado',
+}
+
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+function formatDateTime(d: string) {
+  return new Date(d).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 interface Props {
   initialOrders: PurchaseOrder[]
   suppliers: Supplier[]
   products: Product[]
+  shipments: Shipment[]
 }
 
 const emptyForm = {
@@ -45,7 +59,7 @@ const emptyForm = {
   notes: '',
 }
 
-export default function PurchaseOrdersManager({ initialOrders, suppliers, products }: Props) {
+export default function PurchaseOrdersManager({ initialOrders, suppliers, products, shipments }: Props) {
   const supabase = createClient()
   const [orders, setOrders] = useState(initialOrders)
   const [showForm, setShowForm] = useState(false)
@@ -136,6 +150,13 @@ export default function PurchaseOrdersManager({ initialOrders, suppliers, produc
       if (data) { supplierId = (data as Supplier).id; supplierName = form.newSupplierName }
     }
 
+    const existing = editingId ? orders.find(o => o.id === editingId) : null
+    const statusHistory = existing
+      ? (existing.status === form.status
+          ? existing.status_history
+          : [...existing.status_history, { status: form.status, at: new Date().toISOString() }])
+      : [{ status: form.status, at: new Date().toISOString() }]
+
     const payload = {
       supplier_id: supplierId,
       supplier_name: supplierName || null,
@@ -144,6 +165,7 @@ export default function PurchaseOrdersManager({ initialOrders, suppliers, produc
       currency: 'USD',
       items: form.items,
       payments: form.payments,
+      status_history: statusHistory,
       total_usd: totalUsd,
       notes: form.notes || null,
     }
@@ -160,10 +182,19 @@ export default function PurchaseOrdersManager({ initialOrders, suppliers, produc
     resetForm()
   }
 
-  const updateStatus = async (id: string, status: PurchaseOrderStatus) => {
-    await supabase.from('purchase_orders').update({ status }).eq('id', id)
-    setOrders(os => os.map(o => o.id === id ? { ...o, status } : o))
+  const updateStatus = async (order: PurchaseOrder, status: PurchaseOrderStatus) => {
+    const statusHistory = [...order.status_history, { status, at: new Date().toISOString() }]
+    await supabase.from('purchase_orders').update({ status, status_history: statusHistory }).eq('id', order.id)
+    setOrders(os => os.map(o => o.id === order.id ? { ...o, status, status_history: statusHistory } : o))
   }
+
+  const shipmentsForOrder = (order: PurchaseOrder) =>
+    shipments.filter(s => s.items.some(i => i.purchase_order_id === order.id))
+
+  const shippedQtyFor = (order: PurchaseOrder, item: PurchaseOrderItem) =>
+    shipments.reduce((sum, s) => sum + s.items
+      .filter(si => si.purchase_order_id === order.id && si.description === item.description)
+      .reduce((s2, si) => s2 + si.quantity, 0), 0)
 
   const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar esta orden de compra?')) return
@@ -245,19 +276,42 @@ export default function PurchaseOrdersManager({ initialOrders, suppliers, produc
                               <th className="text-right pb-2">Cant.</th>
                               <th className="text-right pb-2">P. Unit.</th>
                               <th className="text-right pb-2">Subtotal</th>
+                              <th className="text-right pb-2">Embarcado</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {order.items.map((item, i) => (
-                              <tr key={i} className="border-t border-[#1E1E1E]">
-                                <td className="py-2 text-white">{item.description}</td>
-                                <td className="py-2 text-right text-[#B0B8C1]">{item.quantity}</td>
-                                <td className="py-2 text-right text-[#B0B8C1]">${item.unit_price.toFixed(2)}</td>
-                                <td className="py-2 text-right text-[#C9A84C]">${(item.unit_price * item.quantity).toFixed(2)}</td>
-                              </tr>
-                            ))}
+                            {order.items.map((item, i) => {
+                              const shipped = shippedQtyFor(order, item)
+                              const pendingQty = item.quantity - shipped
+                              return (
+                                <tr key={i} className="border-t border-[#1E1E1E]">
+                                  <td className="py-2 text-white">{item.description}</td>
+                                  <td className="py-2 text-right text-[#B0B8C1]">{item.quantity}</td>
+                                  <td className="py-2 text-right text-[#B0B8C1]">${item.unit_price.toFixed(2)}</td>
+                                  <td className="py-2 text-right text-[#C9A84C]">${(item.unit_price * item.quantity).toFixed(2)}</td>
+                                  <td className="py-2 text-right text-xs">
+                                    {shipped > 0
+                                      ? <span className={pendingQty > 0 ? 'text-orange-400' : 'text-green-400'}>{shipped}/{item.quantity}</span>
+                                      : <span className="text-[#6B7680]">0/{item.quantity}</span>}
+                                  </td>
+                                </tr>
+                              )
+                            })}
                           </tbody>
                         </table>
+                      )}
+
+                      {shipmentsForOrder(order).length > 0 && (
+                        <div>
+                          <p className="text-[#C9A84C] text-xs uppercase tracking-wider mb-2 flex items-center gap-1"><Ship size={12} /> Embarques relacionados</p>
+                          <div className="flex flex-wrap gap-2">
+                            {shipmentsForOrder(order).map(s => (
+                              <span key={s.id} className="text-xs px-3 py-1.5 rounded-lg border border-[#1E1E1E] text-[#B0B8C1]">
+                                {s.code || `Embarque ${s.id.slice(0, 8).toUpperCase()}`} · {SHIPMENT_STATUS_LABELS[s.status] || s.status}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       )}
 
                       {order.payments.length > 0 && (
@@ -284,11 +338,25 @@ export default function PurchaseOrdersManager({ initialOrders, suppliers, produc
 
                       {order.notes && <p className="text-[#6B7680] text-xs">Notas: {order.notes}</p>}
 
+                      {order.status_history.length > 0 && (
+                        <div>
+                          <p className="text-[#C9A84C] text-xs uppercase tracking-wider mb-2">Historial de estado</p>
+                          <div className="space-y-1">
+                            {order.status_history.map((h, i) => (
+                              <div key={i} className="flex justify-between text-xs text-[#6B7680]">
+                                <span>{STATUS_LABELS[h.status]}</span>
+                                <span>{formatDateTime(h.at)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex gap-2 flex-wrap">
                         {ALL_STATUSES.map(s => (
                           <button
                             key={s}
-                            onClick={() => updateStatus(order.id, s)}
+                            onClick={() => updateStatus(order, s)}
                             className={`text-xs px-3 py-1.5 rounded-lg border font-bold tracking-wider uppercase transition-colors ${order.status === s ? STATUS_COLORS[s] : 'border-[#1E1E1E] text-[#6B7680] hover:text-white'}`}
                           >
                             {STATUS_LABELS[s]}

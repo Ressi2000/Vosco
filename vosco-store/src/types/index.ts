@@ -170,6 +170,11 @@ export interface PurchaseOrderPayment {
   notes?: string
 }
 
+export interface PurchaseOrderStatusEvent {
+  status: PurchaseOrderStatus
+  at: string
+}
+
 export interface PurchaseOrder {
   id: string
   supplier_id?: string
@@ -179,6 +184,7 @@ export interface PurchaseOrder {
   currency: string
   items: PurchaseOrderItem[]
   payments: PurchaseOrderPayment[]
+  status_history: PurchaseOrderStatusEvent[]
   total_usd: number
   notes?: string
   created_at: string

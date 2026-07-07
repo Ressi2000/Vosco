@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Pencil, Trash2, X, Check, Search } from 'lucide-react'
 import { Supplier } from '@/types'
@@ -130,7 +131,7 @@ export default function SuppliersManager({ initialSuppliers }: { initialSupplier
                 {filtered.map(s => (
                   <motion.tr key={s.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="border-b border-[#1E1E1E] last:border-0">
                     <td className="px-6 py-4">
-                      <p className="text-white text-sm font-medium">{s.name}</p>
+                      <Link href={`/admin/proveedores/${s.id}`} className="text-white text-sm font-medium hover:text-[#C9A84C] transition-colors">{s.name}</Link>
                       {s.payment_terms && <p className="text-[#6B7680] text-xs">{s.payment_terms}</p>}
                     </td>
                     <td className="px-6 py-4 text-[#B0B8C1] text-sm">{s.country || '—'}</td>
