@@ -2,11 +2,13 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Pencil, Trash2, Zap, Wrench, X, Check, Upload, FileSpreadsheet } from 'lucide-react'
+import { Plus, Pencil, Trash2, Zap, Wrench, X, Check, Upload, FileSpreadsheet, LayoutGrid, List } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Product, ProductLineName } from '@/types'
 import { createClient } from '@/lib/supabase/client'
+
+type ViewMode = 'cards' | 'table'
 
 function slugify(text: string) {
   return text
@@ -64,6 +66,7 @@ function parseCSV(raw: string): BulkRow[] {
 export default function ProductsManager({ initialProducts }: { initialProducts: Product[] }) {
   const [products, setProducts] = useState(initialProducts)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [view, setView] = useState<ViewMode>('cards')
 
   // Bulk import state
   const [showBulk, setShowBulk] = useState(false)
@@ -149,6 +152,26 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
           <p className="text-[#6B7680] text-sm mt-1">{products.length} productos en total</p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex rounded-lg border border-[#1E1E1E] overflow-hidden">
+            <button
+              onClick={() => setView('cards')}
+              title="Vista de tarjetas"
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-bold tracking-widest uppercase transition-colors ${
+                view === 'cards' ? 'bg-[#C9A84C] text-black' : 'text-[#6B7680] hover:text-white'
+              }`}
+            >
+              <LayoutGrid size={14} />
+            </button>
+            <button
+              onClick={() => setView('table')}
+              title="Vista de tabla"
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-bold tracking-widest uppercase transition-colors ${
+                view === 'table' ? 'bg-[#C9A84C] text-black' : 'text-[#6B7680] hover:text-white'
+              }`}
+            >
+              <List size={14} />
+            </button>
+          </div>
           <button
             onClick={openBulk}
             className="flex items-center gap-2 border border-[#C9A84C] text-[#C9A84C] px-5 py-3 rounded-lg text-sm font-bold tracking-wider uppercase hover:bg-[#C9A84C]/10 transition-colors"
@@ -164,7 +187,105 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
         </div>
       </div>
 
+      {/* Table view */}
+      {view === 'table' && (
+        <div className="bg-[#111111] border border-[#1E1E1E] rounded-xl overflow-hidden mb-8">
+          {products.length === 0 ? (
+            <p className="text-[#6B7680] text-center py-12">No hay productos todavía.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[#1E1E1E]">
+                    <th className="px-6 py-4" />
+                    <th className="text-left text-[#6B7680] text-xs tracking-widest uppercase px-4 py-4">Nombre</th>
+                    <th className="text-left text-[#6B7680] text-xs tracking-widest uppercase px-4 py-4">Línea</th>
+                    <th className="text-right text-[#6B7680] text-xs tracking-widest uppercase px-4 py-4">Precio</th>
+                    <th className="text-right text-[#6B7680] text-xs tracking-widest uppercase px-4 py-4">Stock</th>
+                    <th className="text-left text-[#6B7680] text-xs tracking-widest uppercase px-4 py-4">Estado</th>
+                    <th className="px-6 py-4" />
+                  </tr>
+                </thead>
+                <tbody>
+                  <AnimatePresence>
+                    {products.map(p => (
+                      <motion.tr
+                        key={p.id}
+                        layout
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="border-b border-[#1E1E1E] last:border-0"
+                      >
+                        <td className="pl-6 py-3">
+                          <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-[#0A0A0A] border border-[#1E1E1E] shrink-0">
+                            {p.images[0] ? (
+                              <Image src={p.images[0]} alt={p.name} fill className="object-cover" />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center text-[#2E2E2E]">
+                                <Upload size={16} />
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-white text-sm font-medium line-clamp-1">{p.name}</p>
+                          {p.codigo_vosco && <p className="text-[#6B7680] text-xs">{p.codigo_vosco}</p>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold tracking-widest uppercase"
+                            style={{
+                              backgroundColor: p.line === 'luces' ? '#C9A84C20' : '#B0B8C120',
+                              color: p.line === 'luces' ? '#C9A84C' : '#B0B8C1',
+                            }}
+                          >
+                            {p.line === 'luces' ? <Zap size={10} /> : <Wrench size={10} />}
+                            {p.line}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {p.on_sale && p.sale_price ? (
+                            <>
+                              <p className="text-[#6B7680] text-xs line-through">${p.price.toFixed(2)}</p>
+                              <p className="text-orange-400 text-sm font-bold">${p.sale_price.toFixed(2)}</p>
+                            </>
+                          ) : (
+                            <p className="text-[#C9A84C] text-sm font-bold">${p.price.toFixed(2)}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right text-[#B0B8C1] text-sm">{p.stock}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-bold ${p.active ? 'text-green-400' : 'text-[#6B7680]'}`}>
+                            {p.active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3">
+                          <div className="flex gap-2 justify-end">
+                            <Link href={`/admin/productos/${p.id}`} className="border border-[#1E1E1E] text-[#B0B8C1] p-2 rounded-lg hover:border-[#B0B8C1] transition-colors">
+                              <Pencil size={12} />
+                            </Link>
+                            <button
+                              onClick={() => handleDelete(p.id)}
+                              disabled={deleting === p.id}
+                              className="border border-[#1E1E1E] text-red-400 p-2 rounded-lg hover:border-red-400 transition-colors disabled:opacity-40"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </AnimatePresence>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Product grid */}
+      {view === 'cards' && (
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         <AnimatePresence>
           {products.map(p => (
@@ -234,6 +355,7 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
           ))}
         </AnimatePresence>
       </div>
+      )}
 
       {/* Bulk Import Modal */}
       <AnimatePresence>
