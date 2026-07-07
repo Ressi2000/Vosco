@@ -151,6 +151,51 @@ export interface Sale {
   customer?: Customer
 }
 
+export interface Supplier {
+  id: string
+  name: string
+  country?: string
+  contact_name?: string
+  phone?: string
+  email?: string
+  wechat?: string
+  payment_terms?: string
+  notes?: string
+  active: boolean
+  created_at: string
+}
+
+export type PurchaseOrderStatus = 'cotizado' | 'confirmado' | 'en_produccion' | 'listo_almacen_china' | 'cancelado'
+
+export interface PurchaseOrderItem {
+  product_id?: string
+  description: string
+  quantity: number
+  unit_price: number
+}
+
+export interface PurchaseOrderPayment {
+  amount: number
+  paid_at: string
+  method?: string
+  notes?: string
+}
+
+export interface PurchaseOrder {
+  id: string
+  supplier_id?: string
+  supplier_name?: string
+  code?: string
+  status: PurchaseOrderStatus
+  currency: string
+  items: PurchaseOrderItem[]
+  payments: PurchaseOrderPayment[]
+  total_usd: number
+  notes?: string
+  created_at: string
+  updated_at?: string
+}
+
 export type DeliveryStatus = 'pending' | 'delivered'
 
 export interface DeliveryNote {
