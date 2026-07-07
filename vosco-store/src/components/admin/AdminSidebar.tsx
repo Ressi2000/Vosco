@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Package, LogOut, ExternalLink,
   Tag, ListChecks, Image, Building2, MessageSquare, Settings,
-  Users, ShoppingBag, Factory, ClipboardList, Ship
+  Users, ShoppingBag, Factory, ClipboardList, Ship, ArrowUpDown
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -17,6 +17,7 @@ const navGroups = [
     items: [
       { href: '/admin/productos', icon: Package, label: 'Productos' },
       { href: '/admin/opciones', icon: ListChecks, label: 'Marcas y Tipos' },
+      { href: '/admin/stock', icon: ArrowUpDown, label: 'Movimientos de Stock' },
       { href: '/admin/proveedores', icon: Factory, label: 'Proveedores' },
       { href: '/admin/compras', icon: ClipboardList, label: 'Órdenes de Compra' },
       { href: '/admin/embarques', icon: Ship, label: 'Embarques' },

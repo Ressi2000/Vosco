@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Pencil, Trash2, Zap, Wrench, X, Check, Upload, FileSpreadsheet } from 'lucide-react'
+import { Plus, Pencil, Trash2, Zap, Wrench, X, Check, Upload, FileSpreadsheet, ArrowUpDown } from 'lucide-react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { Product, ProductLineName, ProductOption } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 
@@ -480,12 +481,26 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                       />
                     </div>
                     <div>
-                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Stock</label>
-                      <input
-                        type="number" value={form.stock}
-                        onChange={e => setForm(f => ({ ...f, stock: e.target.value }))}
-                        className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
+                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">
+                        {editingId ? 'Stock' : 'Stock inicial'}
+                      </label>
+                      {editingId ? (
+                        <div className="flex items-center justify-between bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3">
+                          <span className="text-white text-sm">{form.stock}</span>
+                          <Link
+                            href={`/admin/stock?product=${editingId}`}
+                            className="flex items-center gap-1 text-[#C9A84C] text-xs font-bold uppercase tracking-wider hover:text-[#F0D98A] transition-colors"
+                          >
+                            <ArrowUpDown size={12} /> Ajustar
+                          </Link>
+                        </div>
+                      ) : (
+                        <input
+                          type="number" value={form.stock}
+                          onChange={e => setForm(f => ({ ...f, stock: e.target.value }))}
+                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
+                        />
+                      )}
                     </div>
                   </div>
 

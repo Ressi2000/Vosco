@@ -219,6 +219,19 @@ export interface Shipment {
   updated_at?: string
 }
 
+export type StockMovementReason = 'venta' | 'embarque_recibido' | 'ajuste_manual' | 'devolucion'
+
+export interface StockMovement {
+  id: string
+  product_id: string
+  delta: number
+  reason: StockMovementReason
+  reference_id?: string
+  notes?: string
+  created_at: string
+  product?: Product
+}
+
 export type DeliveryStatus = 'pending' | 'delivered'
 
 export interface DeliveryNote {

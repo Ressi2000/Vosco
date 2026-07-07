@@ -192,7 +192,7 @@ export default function ShipmentsManager({ initialShipments, purchaseOrders, pro
       await Promise.all(
         shipment.items
           .filter((i): i is ShipmentItem & { product_id: string } => !!i.product_id)
-          .map(i => supabase.rpc('increment_stock', { product_id: i.product_id, qty: i.quantity }))
+          .map(i => supabase.rpc('increment_stock', { product_id: i.product_id, qty: i.quantity, reason: 'embarque_recibido', reference_id: shipment.id }))
       )
       patch.stock_applied = true
       if (!shipment.fecha_llegada_real) patch.fecha_llegada_real = new Date().toISOString().slice(0, 10)
