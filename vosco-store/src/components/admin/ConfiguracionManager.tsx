@@ -14,6 +14,8 @@ const FIELDS = [
     { key: 'logo_url', label: 'URL del Logo (deja vacío para logo por defecto)', type: 'text', placeholder: 'https://...' },
     { key: 'hero_slogan', label: 'Eslogan del Hero (portada)', type: 'text', placeholder: 'Ilumina tu camino y destaca tu estilo' },
     { key: 'footer_slogan', label: 'Eslogan del Footer', type: 'text', placeholder: 'VOSCO — Fuerza en la ruta, estilo en la calle.' },
+    { key: 'luces_slogan', label: 'Eslogan — página Luces', type: 'text', placeholder: 'Ilumina tu camino y destaca tu estilo' },
+    { key: 'repuestos_slogan', label: 'Eslogan — página Repuestos', type: 'text', placeholder: 'La pieza que no puede fallar cuando el trabajo lo exige' },
   ]},
   { section: 'Hero — Portada', fields: [
     { key: 'hero_badge',     label: 'Etiqueta superior (texto dorado pequeño)', type: 'text', placeholder: 'Venezuela · Iluminación Vehicular' },

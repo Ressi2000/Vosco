@@ -3,7 +3,7 @@ import Link from 'next/link'
 import Navbar from '@/components/store/Navbar'
 import Footer from '@/components/store/Footer'
 import Catalog from '@/components/store/Catalog'
-import { Product, ProductLine } from '@/types'
+import { Product } from '@/types'
 
 export const metadata = {
   title: 'Repuestos para Camiones — VOSCO',
@@ -13,13 +13,13 @@ export const metadata = {
 async function getData() {
   try {
     const supabase = await createClient()
-    const [{ data: products }, { data: lines }] = await Promise.all([
+    const [{ data: products }, { data: setting }] = await Promise.all([
       supabase.from('products').select('*').eq('line', 'repuestos').eq('active', true).order('created_at', { ascending: false }),
-      supabase.from('product_lines').select('*').eq('slug', 'repuestos').single(),
+      supabase.from('settings').select('value').eq('key', 'repuestos_slogan').single(),
     ])
     return {
       products: (products as Product[]) || [],
-      slogan: (lines as ProductLine | null)?.slogan || 'La pieza que no puede fallar cuando el trabajo lo exige',
+      slogan: (setting as { value: string } | null)?.value || 'La pieza que no puede fallar cuando el trabajo lo exige',
     }
   } catch {
     return { products: [], slogan: 'La pieza que no puede fallar cuando el trabajo lo exige' }

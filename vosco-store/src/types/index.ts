@@ -74,17 +74,6 @@ export interface Category {
   sort_order: number
 }
 
-export interface ProductLine {
-  id: string
-  name: string
-  slug: string
-  slogan: string
-  description: string
-  color: string
-  active: boolean
-  sort_order: number
-}
-
 export interface Banner {
   id: string
   title: string
