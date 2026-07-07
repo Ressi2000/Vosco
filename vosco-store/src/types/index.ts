@@ -196,6 +196,40 @@ export interface PurchaseOrder {
   updated_at?: string
 }
 
+export type ShipmentStatus = 'en_almacen_china' | 'embarcado' | 'en_transito' | 'en_aduana' | 'recibido' | 'cancelado'
+
+export interface ShipmentItem {
+  product_id?: string
+  description: string
+  quantity: number
+  purchase_order_id?: string
+}
+
+export interface Shipment {
+  id: string
+  code?: string
+  status: ShipmentStatus
+  items: ShipmentItem[]
+
+  flete_almacen_china?: number
+  flete_maritimo?: number
+  seguro?: number
+  aduana?: number
+
+  fecha_llegada_almacen_china?: string
+  fecha_embarque?: string
+  dias_transito_estimado: number
+  fecha_llegada_estimada?: string
+  fecha_llegada_real?: string
+
+  cbm_total?: number
+  stock_applied: boolean
+
+  notes?: string
+  created_at: string
+  updated_at?: string
+}
+
 export type DeliveryStatus = 'pending' | 'delivered'
 
 export interface DeliveryNote {

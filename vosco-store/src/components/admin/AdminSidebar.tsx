@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Package, LogOut, ExternalLink,
   Tag, ListChecks, Layers, Image, Building2, MessageSquare, Settings,
-  Users, ShoppingBag, Factory, ClipboardList
+  Users, ShoppingBag, Factory, ClipboardList, Ship
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -17,6 +17,7 @@ const navItems = [
   { href: '/admin/lineas', icon: Layers, label: 'Líneas de Producto' },
   { href: '/admin/proveedores', icon: Factory, label: 'Proveedores' },
   { href: '/admin/compras', icon: ClipboardList, label: 'Órdenes de Compra' },
+  { href: '/admin/embarques', icon: Ship, label: 'Embarques' },
   { href: '/admin/banners', icon: Image, label: 'Banners' },
   { href: '/admin/empresas', icon: Building2, label: 'Empresas' },
   { href: '/admin/testimonios', icon: MessageSquare, label: 'Testimonios' },
