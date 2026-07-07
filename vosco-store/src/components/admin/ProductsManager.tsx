@@ -1,11 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Pencil, Trash2, Zap, Wrench, X, Check, Upload, FileSpreadsheet } from 'lucide-react'
+import { Plus, Pencil, Trash2, Zap, Wrench, X, Check, Upload, FileSpreadsheet, LayoutGrid, List } from 'lucide-react'
 import Image from 'next/image'
-import { Product, ProductLineName, Category } from '@/types'
+import Link from 'next/link'
+import { Product, ProductLineName } from '@/types'
 import { createClient } from '@/lib/supabase/client'
+
+type ViewMode = 'cards' | 'table'
 
 function slugify(text: string) {
   return text
@@ -16,13 +19,6 @@ function slugify(text: string) {
     .replace(/(^-|-$)/g, '')
 }
 
-interface VehicleCompat {
-  brand: string
-  model: string
-  year_from?: number
-  year_to?: number
-}
-
 interface BulkRow {
   name: string
   line: string
@@ -31,24 +27,6 @@ interface BulkRow {
   description: string
   category: string
   error?: string
-}
-
-const emptyForm = {
-  name: '',
-  description: '',
-  price: '',
-  line: 'luces' as ProductLineName,
-  category: '',
-  category_id: '',
-  stock: '',
-  featured: false,
-  active: true,
-  images: [] as string[],
-  specs: {} as Record<string, string>,
-  on_sale: false,
-  sale_price: '',
-  sale_ends_at: '',
-  vehicle_compat: [] as VehicleCompat[],
 }
 
 function parseCSV(raw: string): BulkRow[] {
@@ -87,14 +65,8 @@ function parseCSV(raw: string): BulkRow[] {
 
 export default function ProductsManager({ initialProducts }: { initialProducts: Product[] }) {
   const [products, setProducts] = useState(initialProducts)
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState(emptyForm)
-  const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [imageUrl, setImageUrl] = useState('')
-  const [uploading, setUploading] = useState(false)
-  const [categories, setCategories] = useState<Category[]>([])
+  const [view, setView] = useState<ViewMode>('cards')
 
   // Bulk import state
   const [showBulk, setShowBulk] = useState(false)
@@ -105,109 +77,6 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
   const [bulkDone, setBulkDone] = useState(false)
 
   const supabase = createClient()
-
-  useEffect(() => {
-    supabase.from('categories').select('*').eq('active', true).order('sort_order')
-      .then(({ data }) => { if (data) setCategories(data as Category[]) })
-  }, [])
-
-  const lineCategories = categories.filter(c => c.line_slug === form.line)
-
-  const openNew = () => {
-    setForm(emptyForm)
-    setEditingId(null)
-    setShowForm(true)
-  }
-
-  const openEdit = (p: Product) => {
-    setForm({
-      name: p.name,
-      description: p.description,
-      price: String(p.price),
-      line: p.line,
-      category: p.category,
-      category_id: p.category_id || '',
-      stock: String(p.stock),
-      featured: p.featured,
-      active: (p as any).active ?? true,
-      images: p.images,
-      specs: p.specs || {},
-      on_sale: p.on_sale || false,
-      sale_price: String(p.sale_price || ''),
-      sale_ends_at: p.sale_ends_at ? p.sale_ends_at.slice(0, 16) : '',
-      vehicle_compat: p.vehicle_compat || [],
-    })
-    setEditingId(p.id)
-    setShowForm(true)
-  }
-
-  const addImageUrl = () => {
-    if (imageUrl.trim()) {
-      setForm(f => ({ ...f, images: [...f.images, imageUrl.trim()] }))
-      setImageUrl('')
-    }
-  }
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `products/${Date.now()}.${ext}`
-    const { data, error } = await supabase.storage.from('product-images').upload(path, file)
-    if (data && !error) {
-      const { data: url } = supabase.storage.from('product-images').getPublicUrl(data.path)
-      setForm(f => ({ ...f, images: [...f.images, url.publicUrl] }))
-    }
-    setUploading(false)
-  }
-
-  const addVehicleCompat = () => {
-    setForm(f => ({ ...f, vehicle_compat: [...f.vehicle_compat, { brand: '', model: '' }] }))
-  }
-
-  const updateVehicleCompat = (i: number, field: keyof VehicleCompat, value: string | number) => {
-    setForm(f => ({
-      ...f,
-      vehicle_compat: f.vehicle_compat.map((vc, idx) => idx === i ? { ...vc, [field]: value } : vc)
-    }))
-  }
-
-  const removeVehicleCompat = (i: number) => {
-    setForm(f => ({ ...f, vehicle_compat: f.vehicle_compat.filter((_, idx) => idx !== i) }))
-  }
-
-  const handleSave = async () => {
-    setSaving(true)
-    const payload: Record<string, unknown> = {
-      name: form.name,
-      slug: slugify(form.name),
-      description: form.description,
-      price: parseFloat(form.price),
-      line: form.line,
-      category: form.category,
-      category_id: form.category_id || null,
-      stock: parseInt(form.stock) || 0,
-      featured: form.featured,
-      active: form.active,
-      images: form.images,
-      specs: form.specs,
-      on_sale: form.on_sale,
-      sale_price: form.on_sale && form.sale_price ? parseFloat(form.sale_price) : null,
-      sale_ends_at: form.on_sale && form.sale_ends_at ? form.sale_ends_at : null,
-      vehicle_compat: form.line === 'repuestos' ? form.vehicle_compat : [],
-    }
-
-    if (editingId) {
-      const { data } = await supabase.from('products').update(payload).eq('id', editingId).select().single()
-      if (data) setProducts(ps => ps.map(p => p.id === editingId ? data as Product : p))
-    } else {
-      const { data } = await supabase.from('products').insert(payload).select().single()
-      if (data) setProducts(ps => [data as Product, ...ps])
-    }
-    setSaving(false)
-    setShowForm(false)
-  }
 
   const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar este producto?')) return
@@ -283,22 +152,140 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
           <p className="text-[#6B7680] text-sm mt-1">{products.length} productos en total</p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex rounded-lg border border-[#1E1E1E] overflow-hidden">
+            <button
+              onClick={() => setView('cards')}
+              title="Vista de tarjetas"
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-bold tracking-widest uppercase transition-colors ${
+                view === 'cards' ? 'bg-[#C9A84C] text-black' : 'text-[#6B7680] hover:text-white'
+              }`}
+            >
+              <LayoutGrid size={14} />
+            </button>
+            <button
+              onClick={() => setView('table')}
+              title="Vista de tabla"
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-bold tracking-widest uppercase transition-colors ${
+                view === 'table' ? 'bg-[#C9A84C] text-black' : 'text-[#6B7680] hover:text-white'
+              }`}
+            >
+              <List size={14} />
+            </button>
+          </div>
           <button
             onClick={openBulk}
             className="flex items-center gap-2 border border-[#C9A84C] text-[#C9A84C] px-5 py-3 rounded-lg text-sm font-bold tracking-wider uppercase hover:bg-[#C9A84C]/10 transition-colors"
           >
             <FileSpreadsheet size={16} /> Importar lote
           </button>
-          <button
-            onClick={openNew}
+          <Link
+            href="/admin/productos/nuevo"
             className="flex items-center gap-2 bg-[#C9A84C] text-black px-5 py-3 rounded-lg text-sm font-bold tracking-wider uppercase hover:bg-[#F0D98A] transition-colors"
           >
             <Plus size={16} /> Nuevo producto
-          </button>
+          </Link>
         </div>
       </div>
 
+      {/* Table view */}
+      {view === 'table' && (
+        <div className="bg-[#111111] border border-[#1E1E1E] rounded-xl overflow-hidden mb-8">
+          {products.length === 0 ? (
+            <p className="text-[#6B7680] text-center py-12">No hay productos todavía.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[#1E1E1E]">
+                    <th className="px-6 py-4" />
+                    <th className="text-left text-[#6B7680] text-xs tracking-widest uppercase px-4 py-4">Nombre</th>
+                    <th className="text-left text-[#6B7680] text-xs tracking-widest uppercase px-4 py-4">Línea</th>
+                    <th className="text-right text-[#6B7680] text-xs tracking-widest uppercase px-4 py-4">Precio</th>
+                    <th className="text-right text-[#6B7680] text-xs tracking-widest uppercase px-4 py-4">Stock</th>
+                    <th className="text-left text-[#6B7680] text-xs tracking-widest uppercase px-4 py-4">Estado</th>
+                    <th className="px-6 py-4" />
+                  </tr>
+                </thead>
+                <tbody>
+                  <AnimatePresence>
+                    {products.map(p => (
+                      <motion.tr
+                        key={p.id}
+                        layout
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="border-b border-[#1E1E1E] last:border-0"
+                      >
+                        <td className="pl-6 py-3">
+                          <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-[#0A0A0A] border border-[#1E1E1E] shrink-0">
+                            {p.images[0] ? (
+                              <Image src={p.images[0]} alt={p.name} fill className="object-cover" />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center text-[#2E2E2E]">
+                                <Upload size={16} />
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-white text-sm font-medium line-clamp-1">{p.name}</p>
+                          {p.codigo_vosco && <p className="text-[#6B7680] text-xs">{p.codigo_vosco}</p>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold tracking-widest uppercase"
+                            style={{
+                              backgroundColor: p.line === 'luces' ? '#C9A84C20' : '#B0B8C120',
+                              color: p.line === 'luces' ? '#C9A84C' : '#B0B8C1',
+                            }}
+                          >
+                            {p.line === 'luces' ? <Zap size={10} /> : <Wrench size={10} />}
+                            {p.line}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {p.on_sale && p.sale_price ? (
+                            <>
+                              <p className="text-[#6B7680] text-xs line-through">${p.price.toFixed(2)}</p>
+                              <p className="text-orange-400 text-sm font-bold">${p.sale_price.toFixed(2)}</p>
+                            </>
+                          ) : (
+                            <p className="text-[#C9A84C] text-sm font-bold">${p.price.toFixed(2)}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right text-[#B0B8C1] text-sm">{p.stock}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-bold ${p.active ? 'text-green-400' : 'text-[#6B7680]'}`}>
+                            {p.active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3">
+                          <div className="flex gap-2 justify-end">
+                            <Link href={`/admin/productos/${p.id}`} className="border border-[#1E1E1E] text-[#B0B8C1] p-2 rounded-lg hover:border-[#B0B8C1] transition-colors">
+                              <Pencil size={12} />
+                            </Link>
+                            <button
+                              onClick={() => handleDelete(p.id)}
+                              disabled={deleting === p.id}
+                              className="border border-[#1E1E1E] text-red-400 p-2 rounded-lg hover:border-red-400 transition-colors disabled:opacity-40"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </AnimatePresence>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Product grid */}
+      {view === 'cards' && (
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         <AnimatePresence>
           {products.map(p => (
@@ -347,14 +334,14 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
                     <p className="text-[#C9A84C] font-display text-lg">${p.price.toFixed(2)}</p>
                   )}
                 </div>
-                <p className="text-[#6B7680] text-xs mt-1">Stock: {p.stock} · {(p as any).active ? 'Activo' : 'Inactivo'}</p>
+                <p className="text-[#6B7680] text-xs mt-1">Stock: {p.stock} · {p.active ? 'Activo' : 'Inactivo'}</p>
                 <div className="flex gap-2 mt-4">
-                  <button
-                    onClick={() => openEdit(p)}
+                  <Link
+                    href={`/admin/productos/${p.id}`}
                     className="flex-1 flex items-center justify-center gap-1 border border-[#1E1E1E] text-[#B0B8C1] py-2 rounded-lg text-xs font-medium hover:border-[#B0B8C1] transition-colors"
                   >
                     <Pencil size={12} /> Editar
-                  </button>
+                  </Link>
                   <button
                     onClick={() => handleDelete(p.id)}
                     disabled={deleting === p.id}
@@ -368,247 +355,7 @@ export default function ProductsManager({ initialProducts }: { initialProducts: 
           ))}
         </AnimatePresence>
       </div>
-
-      {/* Form Modal */}
-      <AnimatePresence>
-        {showForm && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowForm(false)}
-              className="fixed inset-0 bg-black/70 z-50"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="bg-[#111111] border border-[#1E1E1E] rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between p-6 border-b border-[#1E1E1E]">
-                  <h2 className="font-display text-2xl text-white tracking-wider">
-                    {editingId ? 'EDITAR PRODUCTO' : 'NUEVO PRODUCTO'}
-                  </h2>
-                  <button onClick={() => setShowForm(false)} className="text-[#6B7680] hover:text-white transition-colors">
-                    <X size={20} />
-                  </button>
-                </div>
-
-                <div className="p-6 space-y-5">
-                  {/* Line selector */}
-                  <div>
-                    <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Línea</label>
-                    <div className="flex gap-3">
-                      {(['luces', 'repuestos'] as ProductLineName[]).map(line => (
-                        <button
-                          key={line}
-                          onClick={() => setForm(f => ({ ...f, line, category_id: '' }))}
-                          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border text-sm font-bold tracking-wider uppercase transition-colors ${
-                            form.line === line
-                              ? line === 'luces'
-                                ? 'bg-[#C9A84C]/20 border-[#C9A84C] text-[#C9A84C]'
-                                : 'bg-[#B0B8C1]/20 border-[#B0B8C1] text-[#B0B8C1]'
-                              : 'border-[#1E1E1E] text-[#6B7680] hover:border-[#2E2E2E]'
-                          }`}
-                        >
-                          {line === 'luces' ? <Zap size={14} /> : <Wrench size={14} />}
-                          {line}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Nombre</label>
-                      <input
-                        value={form.name}
-                        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                        className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Precio (USD)</label>
-                      <input
-                        type="number" step="0.01" value={form.price}
-                        onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
-                        className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Stock</label>
-                      <input
-                        type="number" value={form.stock}
-                        onChange={e => setForm(f => ({ ...f, stock: e.target.value }))}
-                        className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Category select */}
-                  <div>
-                    <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Categoría</label>
-                    {lineCategories.length > 0 ? (
-                      <select
-                        value={form.category_id}
-                        onChange={e => {
-                          const cat = categories.find(c => c.id === e.target.value)
-                          setForm(f => ({ ...f, category_id: e.target.value, category: cat ? cat.name : '' }))
-                        }}
-                        className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      >
-                        <option value="">Sin categoría</option>
-                        {lineCategories.map(cat => (
-                          <option key={cat.id} value={cat.id}>{cat.name}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="text-[#6B7680] text-xs py-2">No hay categorías para esta línea. Crea una en el panel de Categorías.</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Descripción</label>
-                    <textarea
-                      rows={3} value={form.description}
-                      onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                      className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors resize-none"
-                    />
-                  </div>
-
-                  {/* Images */}
-                  <div>
-                    <label className="text-[#C9A84C] text-xs tracking-widest uppercase mb-2 block">Imágenes</label>
-                    <div className="flex gap-2 mb-3">
-                      <input
-                        value={imageUrl}
-                        onChange={e => setImageUrl(e.target.value)}
-                        placeholder="URL de imagen"
-                        className="flex-1 bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-2 text-white text-sm focus:border-[#C9A84C] outline-none transition-colors"
-                      />
-                      <button onClick={addImageUrl} className="px-4 py-2 bg-[#C9A84C] text-black rounded-lg text-sm font-bold hover:bg-[#F0D98A] transition-colors">
-                        <Plus size={16} />
-                      </button>
-                    </div>
-                    <label className="flex items-center gap-2 cursor-pointer text-[#6B7680] hover:text-white text-sm transition-colors">
-                      <Upload size={14} />
-                      {uploading ? 'Subiendo...' : 'Subir desde dispositivo'}
-                      <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-                    </label>
-                    {form.images.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {form.images.map((img, i) => (
-                          <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden bg-[#0A0A0A] border border-[#1E1E1E]">
-                            <Image src={img} alt="" fill className="object-cover" />
-                            <button
-                              onClick={() => setForm(f => ({ ...f, images: f.images.filter((_, j) => j !== i) }))}
-                              className="absolute top-0.5 right-0.5 bg-red-500 rounded-full w-4 h-4 flex items-center justify-center"
-                            >
-                              <X size={10} className="text-white" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Toggles */}
-                  <div className="space-y-3">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div onClick={() => setForm(f => ({ ...f, featured: !f.featured }))} className={`w-10 h-5 rounded-full transition-colors ${form.featured ? 'bg-[#C9A84C]' : 'bg-[#1E1E1E]'}`}>
-                        <div className={`w-4 h-4 bg-white rounded-full mt-0.5 mx-0.5 transition-transform ${form.featured ? 'translate-x-5' : ''}`} />
-                      </div>
-                      <span className="text-[#B0B8C1] text-sm">Producto destacado</span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div onClick={() => setForm(f => ({ ...f, active: !f.active }))} className={`w-10 h-5 rounded-full transition-colors ${form.active ? 'bg-[#C9A84C]' : 'bg-[#1E1E1E]'}`}>
-                        <div className={`w-4 h-4 bg-white rounded-full mt-0.5 mx-0.5 transition-transform ${form.active ? 'translate-x-5' : ''}`} />
-                      </div>
-                      <span className="text-[#B0B8C1] text-sm">Activo</span>
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div onClick={() => setForm(f => ({ ...f, on_sale: !f.on_sale }))} className={`w-10 h-5 rounded-full transition-colors ${form.on_sale ? 'bg-red-500' : 'bg-[#1E1E1E]'}`}>
-                        <div className={`w-4 h-4 bg-white rounded-full mt-0.5 mx-0.5 transition-transform ${form.on_sale ? 'translate-x-5' : ''}`} />
-                      </div>
-                      <span className="text-[#B0B8C1] text-sm">En oferta</span>
-                    </label>
-                  </div>
-
-                  {/* Sale fields */}
-                  {form.on_sale && (
-                    <div className="grid grid-cols-2 gap-4 bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-                      <div>
-                        <label className="text-red-400 text-xs tracking-widest uppercase mb-2 block">Precio de oferta (USD)</label>
-                        <input
-                          type="number" step="0.01" value={form.sale_price}
-                          onChange={e => setForm(f => ({ ...f, sale_price: e.target.value }))}
-                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-red-400 outline-none transition-colors"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-red-400 text-xs tracking-widest uppercase mb-2 block">Fecha fin oferta</label>
-                        <input
-                          type="datetime-local" value={form.sale_ends_at}
-                          onChange={e => setForm(f => ({ ...f, sale_ends_at: e.target.value }))}
-                          className="w-full bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-4 py-3 text-white text-sm focus:border-red-400 outline-none transition-colors"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Vehicle compatibility (repuestos only) */}
-                  {form.line === 'repuestos' && (
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <label className="text-[#C9A84C] text-xs tracking-widest uppercase">Compatibilidad vehicular</label>
-                        <button onClick={addVehicleCompat} className="flex items-center gap-1 text-xs text-[#C9A84C] hover:text-[#F0D98A] transition-colors">
-                          <Plus size={12} /> Agregar
-                        </button>
-                      </div>
-                      {form.vehicle_compat.map((vc, i) => (
-                        <div key={i} className="grid grid-cols-4 gap-2 mb-2">
-                          <input value={vc.brand} onChange={e => updateVehicleCompat(i, 'brand', e.target.value)} placeholder="Marca" className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
-                          <input value={vc.model} onChange={e => updateVehicleCompat(i, 'model', e.target.value)} placeholder="Modelo" className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
-                          <input type="number" value={vc.year_from || ''} onChange={e => updateVehicleCompat(i, 'year_from', parseInt(e.target.value) || 0)} placeholder="Desde" className="bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
-                          <div className="flex gap-1">
-                            <input type="number" value={vc.year_to || ''} onChange={e => updateVehicleCompat(i, 'year_to', parseInt(e.target.value) || 0)} placeholder="Hasta" className="flex-1 bg-[#0A0A0A] border border-[#1E1E1E] rounded-lg px-3 py-2 text-white text-xs focus:border-[#C9A84C] outline-none transition-colors" />
-                            <button onClick={() => removeVehicleCompat(i)} className="text-red-400 hover:text-red-300 p-1">
-                              <X size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      {form.vehicle_compat.length === 0 && (
-                        <p className="text-[#6B7680] text-xs">No hay compatibilidades agregadas.</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-3 p-6 border-t border-[#1E1E1E]">
-                  <button
-                    onClick={() => setShowForm(false)}
-                    className="flex-1 border border-[#1E1E1E] text-[#6B7680] py-3 rounded-lg text-sm font-bold tracking-wider uppercase hover:border-[#2E2E2E] hover:text-white transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving || !form.name || !form.price}
-                    className="flex-1 flex items-center justify-center gap-2 bg-[#C9A84C] text-black py-3 rounded-lg text-sm font-bold tracking-wider uppercase hover:bg-[#F0D98A] transition-colors disabled:opacity-40"
-                  >
-                    <Check size={16} />
-                    {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Crear producto'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      )}
 
       {/* Bulk Import Modal */}
       <AnimatePresence>

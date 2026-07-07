@@ -25,6 +25,9 @@ export default function ProductCard({ product }: { product: Product }) {
   const accent = product.line === 'luces' ? '#C9A84C' : '#B0B8C1'
   const img = product.images[0] || '/placeholder-product.jpg'
   const isOnSale = product.on_sale && product.sale_price != null
+  const subtitle = product.line === 'luces'
+    ? product.tipo || product.category
+    : product.vehicle_compat?.map(v => v.brand).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(', ') || product.category
 
   return (
     <motion.div
@@ -70,7 +73,7 @@ export default function ProductCard({ product }: { product: Product }) {
       </Link>
 
       <div className="p-5 flex flex-col gap-3 flex-1">
-        <p className="text-[#6B7680] text-xs tracking-widest uppercase">{product.category}</p>
+        {subtitle && <p className="text-[#6B7680] text-xs tracking-widest uppercase">{subtitle}</p>}
         <h3 className="text-white font-semibold text-sm leading-snug line-clamp-2">{product.name}</h3>
         <p className="text-[#6B7680] text-xs leading-relaxed line-clamp-2">{product.description}</p>
 

@@ -138,7 +138,7 @@ export default function SalesManager({ initialSales, customers, products, bcvRat
       // Decrement stock and deactivate products that reach 0
       await Promise.all(
         saleItems.map(async item => {
-          await supabase.rpc('decrement_stock', { product_id: item.product_id, qty: item.quantity })
+          await supabase.rpc('decrement_stock', { product_id: item.product_id, qty: item.quantity, reason: 'venta', reference_id: (sale as Sale).id })
           const product = products.find(p => p.id === item.product_id)
           if (product && product.stock - item.quantity <= 0) {
             await supabase.from('products').update({ active: false }).eq('id', item.product_id)

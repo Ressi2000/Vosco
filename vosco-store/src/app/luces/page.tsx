@@ -3,7 +3,7 @@ import Link from 'next/link'
 import Navbar from '@/components/store/Navbar'
 import Footer from '@/components/store/Footer'
 import Catalog from '@/components/store/Catalog'
-import { Product, Category, ProductLine } from '@/types'
+import { Product } from '@/types'
 
 export const metadata = {
   title: 'Luces para Vehículos — VOSCO',
@@ -13,23 +13,21 @@ export const metadata = {
 async function getData() {
   try {
     const supabase = await createClient()
-    const [{ data: products }, { data: categories }, { data: lines }] = await Promise.all([
+    const [{ data: products }, { data: setting }] = await Promise.all([
       supabase.from('products').select('*').eq('line', 'luces').eq('active', true).order('created_at', { ascending: false }),
-      supabase.from('categories').select('*').eq('line_slug', 'luces').eq('active', true).order('sort_order'),
-      supabase.from('product_lines').select('*').eq('slug', 'luces').single(),
+      supabase.from('settings').select('value').eq('key', 'luces_slogan').single(),
     ])
     return {
       products: (products as Product[]) || [],
-      categories: (categories as Category[]) || [],
-      slogan: (lines as ProductLine | null)?.slogan || 'Ilumina tu camino y destaca tu estilo',
+      slogan: (setting as { value: string } | null)?.value || 'Ilumina tu camino y destaca tu estilo',
     }
   } catch {
-    return { products: [], categories: [], slogan: 'Ilumina tu camino y destaca tu estilo' }
+    return { products: [], slogan: 'Ilumina tu camino y destaca tu estilo' }
   }
 }
 
 export default async function LucesPage() {
-  const { products, categories, slogan } = await getData()
+  const { products, slogan } = await getData()
 
   return (
     <>
@@ -56,7 +54,7 @@ export default async function LucesPage() {
             </div>
           </div>
         </div>
-        <Catalog products={products} categories={categories} defaultLine="luces" hideLineFilter />
+        <Catalog products={products} defaultLine="luces" hideLineFilter />
       </main>
       <Footer />
     </>

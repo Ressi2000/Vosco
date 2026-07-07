@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useInView } from 'framer-motion'
 import { useRef } from 'react'
 import { Search, SlidersHorizontal, X, ChevronDown } from 'lucide-react'
-import { Product, ProductLineName, Category } from '@/types'
+import { Product, ProductLineName } from '@/types'
 import ProductCard from './ProductCard'
 
 type LineFilter = 'all' | ProductLineName
@@ -26,7 +26,6 @@ const sortOptions: { value: SortOption; label: string }[] = [
 
 interface CatalogProps {
   products: Product[]
-  categories?: Category[]
   defaultLine?: 'luces' | 'repuestos' | 'all'
   hideLineFilter?: boolean
 }
@@ -40,15 +39,15 @@ function ActiveBadge({ count }: { count: number }) {
   )
 }
 
-export default function Catalog({ products, categories, defaultLine = 'all', hideLineFilter = false }: CatalogProps) {
+export default function Catalog({ products, defaultLine = 'all', hideLineFilter = false }: CatalogProps) {
   const [activeLine, setActiveLine] = useState<LineFilter>(defaultLine)
-  const [activeCat, setActiveCat] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortOption>('newest')
   const [onlyInStock, setOnlyInStock] = useState(false)
   const [onlyOffers, setOnlyOffers] = useState(false)
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 9999])
   const [activeBrand, setActiveBrand] = useState<string>('all')
+  const [activeTipo, setActiveTipo] = useState<string>('all')
   const [showFilters, setShowFilters] = useState(false)
   const ref = useRef(null)
   const inView = useInView(ref, { once: true })
@@ -64,29 +63,30 @@ export default function Catalog({ products, categories, defaultLine = 'all', hid
     return Array.from(brands).sort()
   }, [products])
 
-  const visibleCategories = useMemo(() => {
-    if (!categories) return []
-    if (activeLine === 'all') return categories
-    return categories.filter(c => c.line_slug === activeLine)
-  }, [categories, activeLine])
+  // Unique tipos from luces products
+  const tipos = useMemo(() => {
+    const set = new Set<string>()
+    products.filter(p => p.line === 'luces' && p.tipo).forEach(p => set.add(p.tipo as string))
+    return Array.from(set).sort()
+  }, [products])
 
   const activeFilterCount = useMemo(() => {
     let count = 0
-    if (activeCat !== 'all') count++
     if (onlyInStock) count++
     if (onlyOffers) count++
     if (priceRange[0] > 0 || priceRange[1] < maxPrice) count++
     if (activeBrand !== 'all') count++
+    if (activeTipo !== 'all') count++
     return count
-  }, [activeCat, onlyInStock, onlyOffers, priceRange, maxPrice, activeBrand])
+  }, [onlyInStock, onlyOffers, priceRange, maxPrice, activeBrand, activeTipo])
 
   const filtered = useMemo(() => {
     let list = products
     if (activeLine !== 'all') list = list.filter(p => p.line === activeLine)
-    if (activeCat !== 'all') list = list.filter(p => p.category === activeCat || p.category_id === activeCat)
     if (onlyInStock) list = list.filter(p => p.stock > 0)
     if (onlyOffers) list = list.filter(p => p.on_sale)
     if (activeBrand !== 'all') list = list.filter(p => p.vehicle_compat?.some(v => v.brand === activeBrand))
+    if (activeTipo !== 'all') list = list.filter(p => p.tipo === activeTipo)
     list = list.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1])
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -102,14 +102,14 @@ export default function Catalog({ products, categories, defaultLine = 'all', hid
       case 'name_asc': return [...list].sort((a, b) => a.name.localeCompare(b.name))
       default: return list
     }
-  }, [products, activeLine, activeCat, onlyInStock, onlyOffers, priceRange, search, sort, activeBrand])
+  }, [products, activeLine, onlyInStock, onlyOffers, priceRange, search, sort, activeBrand, activeTipo])
 
   const clearAll = () => {
-    setActiveCat('all')
     setOnlyInStock(false)
     setOnlyOffers(false)
     setPriceRange([0, maxPrice])
     setActiveBrand('all')
+    setActiveTipo('all')
   }
 
   return (
@@ -135,7 +135,7 @@ export default function Catalog({ products, categories, defaultLine = 'all', hid
                 {lineFilters.map(f => (
                   <button
                     key={f.value}
-                    onClick={() => { setActiveLine(f.value); setActiveCat('all'); setActiveBrand('all') }}
+                    onClick={() => { setActiveLine(f.value); setActiveBrand('all'); setActiveTipo('all') }}
                     className={`px-5 py-2 text-xs font-bold tracking-widest uppercase transition-colors duration-200 ${
                       activeLine === f.value ? 'bg-[#C9A84C] text-black' : 'text-[#6B7680] hover:text-white'
                     }`}
@@ -203,24 +203,24 @@ export default function Catalog({ products, categories, defaultLine = 'all', hid
               className="overflow-hidden mb-6"
             >
               <div className="bg-[#111111] border border-[#1E1E1E] rounded-xl p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {/* Categories */}
-                {visibleCategories.length > 0 && (
+                {/* Tipo (only luces) */}
+                {(activeLine === 'luces' || activeLine === 'all') && tipos.length > 0 && (
                   <div>
-                    <p className="text-[#C9A84C] text-xs tracking-widest uppercase mb-3">Categoría</p>
+                    <p className="text-[#C9A84C] text-xs tracking-widest uppercase mb-3">Tipo</p>
                     <div className="flex flex-col gap-2">
                       <button
-                        onClick={() => setActiveCat('all')}
-                        className={`text-left text-xs py-1 transition-colors ${activeCat === 'all' ? 'text-[#C9A84C] font-bold' : 'text-[#6B7680] hover:text-white'}`}
+                        onClick={() => setActiveTipo('all')}
+                        className={`text-left text-xs py-1 transition-colors ${activeTipo === 'all' ? 'text-[#C9A84C] font-bold' : 'text-[#6B7680] hover:text-white'}`}
                       >
-                        Todas
+                        Todos
                       </button>
-                      {visibleCategories.map(cat => (
+                      {tipos.map(tipo => (
                         <button
-                          key={cat.id}
-                          onClick={() => setActiveCat(cat.slug)}
-                          className={`text-left text-xs py-1 transition-colors ${activeCat === cat.slug ? 'text-[#C9A84C] font-bold' : 'text-[#6B7680] hover:text-white'}`}
+                          key={tipo}
+                          onClick={() => setActiveTipo(tipo)}
+                          className={`text-left text-xs py-1 transition-colors ${activeTipo === tipo ? 'text-[#C9A84C] font-bold' : 'text-[#6B7680] hover:text-white'}`}
                         >
-                          {cat.name}
+                          {tipo}
                         </button>
                       ))}
                     </div>
@@ -326,7 +326,7 @@ export default function Catalog({ products, categories, defaultLine = 'all', hid
             </motion.div>
           ) : (
             <motion.div
-              key={`${activeLine}-${activeCat}-${search}-${sort}-${onlyInStock}-${onlyOffers}-${activeBrand}`}
+              key={`${activeLine}-${activeTipo}-${search}-${sort}-${onlyInStock}-${onlyOffers}-${activeBrand}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
